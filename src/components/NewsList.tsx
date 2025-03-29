@@ -209,8 +209,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
   // Background summarization function - fixed to properly check item status
   const summarizeItemInBackground = async (itemId: string): Promise<void> => {
     // Get the latest item state
-    const currentItems = [...newsItems];
-    const item = currentItems.find(i => i.id === itemId);
+    const item = newsItems.find(i => i.id === itemId);
     
     if (!item) {
       console.log(`Skipping summarization for item ${itemId}: Item not found.`);
@@ -237,71 +236,83 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       setSummarizingCount(prev => prev + 1);
       
       // Add to active summarizations set to prevent duplicate processing
-      setActiveSummarizations(prev => new Set(prev).add(itemId));
+      setActiveSummarizations(prev => {
+        const newSet = new Set(prev);
+        newSet.add(itemId);
+        return newSet;
+      });
       
-      const fullContent = await fetchArticleContent(item.link);
-      const contentToAnalyze = fullContent || item.description;
+      // Create a separate AbortController for this summarization
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        abortController.abort(); 
+        console.log(`Summarization timed out for item ${itemId}`);
+      }, 30000); // 30 second timeout
       
-      // Ensure content exists before calling LLM
-      if (!contentToAnalyze) {
-        console.warn(`No content found to analyze for item ${itemId}`);
-        updateNewsItem({ 
-          ...item, 
-          isSummarized: true, 
-          isSummarizing: false, 
-          summary: "No content to summarize." 
-        });
-        setSummarizingCount(prev => Math.max(0, prev - 1));
-        setActiveSummarizations(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(itemId);
-          return newSet;
-        });
-        return;
-      }
-      
-      // Try LLM analysis
       try {
-        console.log(`Starting LLM analysis for item ${itemId} with content length: ${contentToAnalyze.length}`);
-        const llmResult = await analyzeLLM(item.title, contentToAnalyze);
+        const fullContent = await fetchArticleContent(item.link, abortController.signal);
+        const contentToAnalyze = fullContent || item.description;
         
-        console.log(`LLM summarization successful for item ${itemId}. Summary: ${llmResult.summary.substring(0, 50)}...`);
-        updateNewsItem({
-          ...item,
-          summary: llmResult.summary,
-          llmSentiment: llmResult.sentiment,
-          llmKeywords: llmResult.keywords,
-          isSummarized: true,
-          isSummarizing: false,
-          // Update reading time based on full content if available
-          readingTimeSeconds: fullContent ? calculateReadingTime(fullContent) : item.readingTimeSeconds,
-        });
+        // Ensure content exists before calling LLM
+        if (!contentToAnalyze) {
+          console.warn(`No content found to analyze for item ${itemId}`);
+          updateNewsItem({ 
+            ...item, 
+            isSummarized: true, 
+            isSummarizing: false, 
+            summary: "No content to summarize." 
+          });
+          return;
+        }
         
-      } catch (llmError) {
-        console.warn(`LLM analysis failed for item ${itemId}, falling back to local analysis:`, llmError);
-        
-        // Fallback: Use local analysis and store in primary fields
-        const combinedText = item.title + " " + contentToAnalyze;
-        const fallbackSentiment = analyzeSentiment(combinedText);
-        const fallbackKeywords = extractKeywords(combinedText, 3);
-        
-        // Generate a simple fallback summary (e.g., first few sentences)
-        const sentences = contentToAnalyze.split(/\.\s+/);
-        const fallbackSummary = sentences.slice(0, 3).join(". ") + (sentences.length > 3 ? "." : "");
-        
-        console.log(`Generated fallback summary for item ${itemId}: ${fallbackSummary.substring(0, 50)}...`);
-        
-        updateNewsItem({
-          ...item,
-          summary: fallbackSummary, // Use basic summary
-          sentiment: fallbackSentiment, // Store fallback in primary sentiment field
-          keywords: fallbackKeywords, // Store fallback in primary keywords field
-          llmSentiment: null, // Indicate LLM didn't provide this
-          llmKeywords: [], // Indicate LLM didn't provide this
-          isSummarized: true, // Mark as summarized (even with fallback)
-          isSummarizing: false,
-          readingTimeSeconds: fullContent ? calculateReadingTime(fullContent) : item.readingTimeSeconds,
-        });
+        // Try LLM analysis
+        try {
+          console.log(`Starting LLM analysis for item ${itemId} with content length: ${contentToAnalyze.length}`);
+          const llmResult = await analyzeLLM(item.title, contentToAnalyze);
+          
+          console.log(`LLM summarization successful for item ${itemId}. Summary: ${llmResult.summary.substring(0, 50)}...`);
+          updateNewsItem({
+            ...item,
+            summary: llmResult.summary,
+            llmSentiment: llmResult.sentiment,
+            llmKeywords: llmResult.keywords,
+            isSummarized: true,
+            isSummarizing: false,
+            // Update reading time based on full content if available
+            readingTimeSeconds: fullContent ? calculateReadingTime(fullContent) : item.readingTimeSeconds,
+          });
+          
+        } catch (llmError) {
+          console.warn(`LLM analysis failed for item ${itemId}, falling back to local analysis:`, llmError);
+          
+          // Fallback: Use local analysis and store in primary fields
+          const combinedText = item.title + " " + contentToAnalyze;
+          const fallbackSentiment = analyzeSentiment(combinedText);
+          const fallbackKeywords = extractKeywords(combinedText, 3);
+          
+          // Generate a simple fallback summary (e.g., first few sentences)
+          const sentences = contentToAnalyze.split(/\.\s+/);
+          const fallbackSummary = sentences.slice(0, 3).join(". ") + (sentences.length > 3 ? "." : "");
+          
+          console.log(`Generated fallback summary for item ${itemId}: ${fallbackSummary.substring(0, 50)}...`);
+          
+          updateNewsItem({
+            ...item,
+            summary: fallbackSummary, // Use basic summary
+            sentiment: fallbackSentiment, // Store fallback in primary sentiment field
+            keywords: fallbackKeywords, // Store fallback in primary keywords field
+            llmSentiment: null, // Indicate LLM didn't provide this
+            llmKeywords: [], // Indicate LLM didn't provide this
+            isSummarized: true, // Mark as summarized (even with fallback)
+            isSummarizing: false,
+            readingTimeSeconds: fullContent ? calculateReadingTime(fullContent) : item.readingTimeSeconds,
+          });
+        }
+      } finally {
+        clearTimeout(timeoutId);
+        if (!abortController.signal.aborted) {
+          abortController.abort(); // Clean up
+        }
       }
       
     } catch (error) {
@@ -329,16 +340,36 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     const MAX_CONCURRENT = 2; // Process up to 2 items at once
     console.log(`Starting summarization queue for ${itemIds.length} items.`);
     
+    // Access the current newsItems directly to ensure we have the latest state
+    const currentNewsItems = [...newsItems];
+    const currentActiveSummarizations = new Set(activeSummarizations);
+    
     // Filter out IDs that are already being summarized or have summaries
     const itemsToProcess = itemIds.filter(id => {
-      const item = newsItems.find(i => i.id === id);
-      return item && 
-             !activeSummarizations.has(id) && 
-             (!item.isSummarized || (item.isSummarized && !item.summary));
+      const item = currentNewsItems.find(i => i.id === id);
+      
+      // Debug logging to understand why items are being filtered out
+      if (!item) {
+        console.log(`Item ${id} not found in news items`);
+        return false;
+      }
+      
+      if (currentActiveSummarizations.has(id)) {
+        console.log(`Item ${id} is already being summarized`);
+        return false;
+      }
+      
+      if (item.isSummarized && item.summary) {
+        console.log(`Item ${id} already has a summary`);
+        return false;
+      }
+      
+      // Include this item in processing
+      return true;
     });
     
     if (itemsToProcess.length === 0) {
-      console.log("No items need summarization in the current queue.");
+      console.log("No items need summarization in the current queue. Items filtered out completely.");
       return;
     }
     
@@ -427,14 +458,18 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       console.log(`Filtered cached items: ${filteredItems.length} items from the last 24 hours`);
       setNewsItems(filteredItems);
       
+      // Reset the activeSummarizations set to ensure we don't have stale entries
+      setActiveSummarizations(new Set());
+      
       // Check if there are any items that haven't been summarized yet from cache
       const itemsToSummarizeFromCache = filteredItems
-        .filter(item => !item.isSummarized && !item.isSummarizing)
+        .filter(item => !item.isSummarized || (item.isSummarized && !item.summary))
         .map(item => item.id);
       
       if (itemsToSummarizeFromCache.length > 0) {
         console.log(`Found ${itemsToSummarizeFromCache.length} items in cache needing summarization.`);
-        processSummarizationQueue(itemsToSummarizeFromCache);
+        // Slight delay to ensure state is updated before processing
+        setTimeout(() => processSummarizationQueue(itemsToSummarizeFromCache), 500); 
       }
       
       setLoading(false);
@@ -645,6 +680,9 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       
       // Check if the component is still mounted before updating state
       if (isMounted.current) {
+        // Reset active summarizations
+        setActiveSummarizations(new Set());
+        
         // Update state with new items (UI component will handle sorting)
         setNewsItems(newParsedItems);
         
@@ -664,7 +702,8 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
             description: `Generating summaries for ${itemsToSummarize.length} new articles...`,
           });
           
-          processSummarizationQueue(itemsToSummarize);
+          // Slight delay to ensure state is updated before processing
+          setTimeout(() => processSummarizationQueue(itemsToSummarize), 500);
         }
         
         if (forceRefresh) {
@@ -713,8 +752,11 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
   
   // Force a resummary of all items - with better logic
   const resummaryAllItems = () => {
+    // Reset active summarizations set to avoid stale entries
+    setActiveSummarizations(new Set());
+    
     const itemsToProcess = newsItems
-      .filter(item => !item.isSummarizing && (!item.summary || !item.isSummarized))
+      .filter(item => !item.summary) // Only try to summarize items without summaries
       .map(item => item.id);
     
     if (itemsToProcess.length > 0) {
@@ -722,7 +764,8 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
         title: "Generating summaries",
         description: `Summarizing ${itemsToProcess.length} news items...`,
       });
-      processSummarizationQueue(itemsToProcess);
+      // Slight delay to ensure state is updated before processing
+      setTimeout(() => processSummarizationQueue(itemsToProcess), 300);
     } else {
       toast({
         title: "No items to summarize",
