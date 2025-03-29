@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import NewsHeader from "@/components/NewsHeader";
 import NewsList from "@/components/NewsList";
@@ -90,17 +89,17 @@ const Index = () => {
 
   // Force a console.log of debug info
   useEffect(() => {
-    console.log("NewsHub Application Starting - Google News Top Stories Version");
+    console.log("NewsHub Application Starting - Google News Search Version");
     console.log("User Agent:", navigator.userAgent);
     console.log("Window Size:", window.innerWidth, "x", window.innerHeight);
   }, []);
 
-  const googleNewsFeedUrl = "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1YlY4U0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US:en";
+  const googleNewsFeedUrl = "https://news.google.com/news/rss/search?q=news&hl=en";
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <NewsHeader 
-        sourceName="Google News Top Stories" 
+        sourceName="Google News - Search" 
         sourceUrl="https://news.google.com" 
         isProcessing={summarizingCount > 0}
         processingCount={summarizingCount}

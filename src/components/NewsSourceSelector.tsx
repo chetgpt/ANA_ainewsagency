@@ -11,9 +11,9 @@ export interface NewsSource {
 
 export const NEWS_SOURCES: NewsSource[] = [
   {
-    name: "Google News - Top Stories",
+    name: "Google News - Search",
     url: "https://news.google.com",
-    feedUrl: "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1YlY4U0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US:en",
+    feedUrl: "https://news.google.com/news/rss/search?q=news&hl=en",
   }
 ];
 
