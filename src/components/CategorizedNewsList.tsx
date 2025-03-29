@@ -4,7 +4,7 @@ import { Loader2, FileText, Copy, Newspaper } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { generateNewsScript, analyzeSentiment, extractKeywords, calculateReadingTime } from "@/utils/textAnalysis";
+import { generateNewsScript, analyzeSentiment, extractKeywords, calculateReadingTime, fetchArticleContent } from "@/utils/textAnalysis";
 
 interface CategorizedNewsListProps {
   selectedCategory: string;
@@ -18,6 +18,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     type: string,
     summary?: {
       description: string;
+      fullContent?: string;
       sentiment: "positive" | "negative" | "neutral";
       keywords: string[];
       readingTimeSeconds: number;
@@ -26,6 +27,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     }
   } | null>(null);
   const [rawData, setRawData] = useState<string | null>(null);
+  const [fullArticle, setFullArticle] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -78,11 +80,26 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
           link 
         });
         
+        // Fetch full article content
+        console.log("Fetching full article content from link:", link);
+        let articleContent = "";
+        try {
+          articleContent = await fetchArticleContent(link);
+          console.log("Fetched article content length:", articleContent.length);
+          setFullArticle(articleContent);
+        } catch (err) {
+          console.error("Error fetching article content:", err);
+          articleContent = description; // Fallback to description
+        }
+        
+        // Use either full article content or description for analysis
+        const contentToAnalyze = articleContent || description;
+        const combinedText = title + " " + contentToAnalyze;
+        
         // Perform simple analysis
-        const combinedText = title + " " + description;
         const sentiment = analyzeSentiment(combinedText);
         const keywords = extractKeywords(combinedText, 3);
-        const readingTimeSeconds = calculateReadingTime(description);
+        const readingTimeSeconds = calculateReadingTime(contentToAnalyze);
         
         console.log("Analysis results:", { sentiment, keywords, readingTimeSeconds });
         
@@ -90,6 +107,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         const newsItem = {
           title,
           description,
+          fullContent: articleContent,
           sentiment,
           keywords,
           readingTimeSeconds,
@@ -108,6 +126,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
           type: 'single',
           summary: {
             description: newsItem.description,
+            fullContent: newsItem.fullContent,
             sentiment: newsItem.sentiment,
             keywords: newsItem.keywords,
             readingTimeSeconds: newsItem.readingTimeSeconds,
@@ -120,7 +139,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         
         toast({
           title: "Enhanced Script Generated",
-          description: "A detailed news script has been created from CNN feed",
+          description: "A detailed news script has been created from CNN feed with full article content",
         });
       } catch (error) {
         console.error("Error fetching news:", error);
@@ -129,6 +148,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         const sampleNewsItem = {
           title: "Tech Innovation Accelerates in Renewable Energy Sector",
           description: "Leading tech companies have announced significant investments in renewable energy technologies, promising to revolutionize the industry within the next decade. These advancements focus on improving efficiency and reducing costs in solar and wind power generation.",
+          fullContent: "Leading technology companies including Google, Microsoft, and Tesla have announced major initiatives to accelerate innovation in the renewable energy sector. These investments, totaling over $15 billion, will focus on improving efficiency in solar panel production, enhancing wind turbine technology, and developing new energy storage solutions. Industry analysts predict these advancements could reduce the cost of renewable energy by up to 40% within the next decade, making it more accessible and affordable for consumers and businesses alike. The initiatives also include partnerships with research institutions and startups to explore breakthrough technologies that could fundamentally transform how we generate, store, and distribute clean energy. Environmental experts have praised these commitments as critical steps toward addressing climate change and reducing dependence on fossil fuels.",
           sentiment: "positive" as const,
           keywords: ["technology innovation", "renewable energy", "sustainable development"],
           readingTimeSeconds: 240,
@@ -146,6 +166,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
           type: 'single',
           summary: {
             description: sampleNewsItem.description,
+            fullContent: sampleNewsItem.fullContent,
             sentiment: sampleNewsItem.sentiment,
             keywords: sampleNewsItem.keywords,
             readingTimeSeconds: sampleNewsItem.readingTimeSeconds,
@@ -232,6 +253,16 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
                     {formatReadingTime(script.summary.readingTimeSeconds)}
                   </Badge>
                 </div>
+                
+                {fullArticle && (
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold mb-2">Full Article Preview</h3>
+                    <div className="bg-gray-50 p-3 rounded-md border text-xs text-gray-700 max-h-40 overflow-auto">
+                      {fullArticle.substring(0, 500)}
+                      {fullArticle.length > 500 ? "..." : ""}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

@@ -108,6 +108,7 @@ export async function fetchArticleContent(url: string): Promise<string> {
     }
     
     const html = await response.text();
+    console.log(`Fetched article HTML with length: ${html.length}`);
     
     // Create a DOM parser
     const parser = new DOMParser();
@@ -117,30 +118,57 @@ export async function fetchArticleContent(url: string): Promise<string> {
     // This is a simplified approach - real-world implementations would use more sophisticated methods
     const contentSelectors = [
       "article", ".article", ".post-content", ".entry-content", 
-      ".content", "#content", "main", ".main"
+      ".content", "#content", "main", ".main", ".story-body", ".article-body",
+      "[data-component='text-block']", ".zn-body__paragraph", ".pf-content"
     ];
     
     let content = "";
     
     // Try each selector
     for (const selector of contentSelectors) {
-      const element = doc.querySelector(selector);
-      if (element) {
-        content = element.textContent || "";
-        break;
+      const elements = doc.querySelectorAll(selector);
+      if (elements && elements.length > 0) {
+        console.log(`Found ${elements.length} elements with selector: ${selector}`);
+        // Combine text from all matching elements
+        elements.forEach(element => {
+          if (element.textContent) {
+            content += element.textContent + " ";
+          }
+        });
+        if (content) {
+          console.log(`Found content with selector ${selector}, length: ${content.length}`);
+          break;
+        }
       }
     }
     
-    // If we couldn't find content with selectors, take the body content
+    // If we couldn't find content with selectors, try paragraphs
     if (!content) {
+      console.log("No content found with selectors, trying paragraphs");
+      const paragraphs = doc.querySelectorAll("p");
+      if (paragraphs && paragraphs.length > 0) {
+        paragraphs.forEach(p => {
+          if (p.textContent) {
+            content += p.textContent + " ";
+          }
+        });
+      }
+    }
+    
+    // If we still couldn't find content, take the body content
+    if (!content) {
+      console.log("No content found with paragraphs, using body content");
       const body = doc.querySelector("body");
       content = body ? body.textContent || "" : "";
     }
     
     // Clean the content
-    return content
+    content = content
       .replace(/\s+/g, " ")  // Replace multiple whitespace with single space
       .trim();               // Trim leading/trailing whitespace
+    
+    console.log(`Final cleaned content length: ${content.length}`);
+    return content;
     
   } catch (error) {
     console.error("Error fetching article content:", error);
@@ -302,10 +330,14 @@ export function generateNewsScript(newsItem: any): string {
   else {
     const title = newsItem.title;
     const description = newsItem.description;
+    const fullContent = newsItem.fullContent || ""; // Use fullContent when available
     const sentiment = newsItem.sentiment;
     const keywords = newsItem.keywords;
     const sourceName = newsItem.sourceName;
-    const readingTimeMinutes = Math.round((newsItem.readingTimeSeconds || 0) / 60) || 1;
+    
+    // Use full content for reading time if available, otherwise use description
+    const contentForReadingTime = fullContent || description;
+    const readingTimeMinutes = Math.round((newsItem.readingTimeSeconds || calculateReadingTime(contentForReadingTime)) / 60) || 1;
     
     // Enhanced script for single news article
     // Create a more professional intro
@@ -326,7 +358,12 @@ export function generateNewsScript(newsItem: any): string {
     }
     
     // Create a more detailed body with segments
-    let body = `REPORTER: ${sentimentIntro}${description}\n\n`;
+    // Use full content if available, otherwise use description
+    const contentForBody = fullContent && fullContent.length > description.length 
+      ? fullContent.substring(0, 300) + "..." // Use truncated full content if available
+      : description;
+      
+    let body = `REPORTER: ${sentimentIntro}${contentForBody}\n\n`;
     
     // Add analysis section with key points
     if (keywords && keywords.length) {
