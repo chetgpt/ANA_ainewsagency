@@ -4,85 +4,106 @@ import NewsItem, { NewsItemProps } from "./NewsItem";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { categorizeNewsItem } from "@/utils/newsCategories";
+import { NEWS_SOURCES } from "./NewsSourceSelector";
 
 interface CategorizedNewsListProps {
-  feedUrl: string;
   selectedCategory: string;
 }
 
-const CategorizedNewsList = ({ feedUrl, selectedCategory }: CategorizedNewsListProps) => {
+const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => {
   const [newsItems, setNewsItems] = useState<(NewsItemProps & { category: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const fetchRssFeed = async () => {
+    const fetchAllRssFeeds = async () => {
       try {
         setLoading(true);
-        
-        // Use a CORS proxy to fetch the RSS feed
         const corsProxy = "https://api.allorigins.win/raw?url=";
-        const response = await fetch(`${corsProxy}${encodeURIComponent(feedUrl)}`);
         
-        if (!response.ok) {
-          throw new Error(`Failed to fetch RSS feed: ${response.status}`);
-        }
-        
-        const data = await response.text();
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(data, "text/xml");
-        
-        const items = xmlDoc.querySelectorAll("item");
-        const parsedItems = [];
-        
-        for (const item of items) {
-          // Find image in media:content, enclosure, or description
-          let imageUrl = "";
-          const mediaContent = item.querySelector("media\\:content, content");
-          const enclosure = item.querySelector("enclosure");
-          
-          if (mediaContent && mediaContent.getAttribute("url")) {
-            imageUrl = mediaContent.getAttribute("url") || "";
-          } else if (enclosure && enclosure.getAttribute("url") && enclosure.getAttribute("type")?.startsWith("image/")) {
-            imageUrl = enclosure.getAttribute("url") || "";
-          } else {
-            // Try to extract image from description
-            const description = item.querySelector("description")?.textContent || "";
-            const imgMatch = description.match(/<img[^>]+src="([^">]+)"/);
-            if (imgMatch && imgMatch[1]) {
-              imageUrl = imgMatch[1];
+        // Create promises for all RSS feeds
+        const feedPromises = NEWS_SOURCES.map(async (source) => {
+          try {
+            const response = await fetch(`${corsProxy}${encodeURIComponent(source.feedUrl)}`);
+            
+            if (!response.ok) {
+              console.error(`Failed to fetch ${source.name} RSS feed: ${response.status}`);
+              return [];
             }
+            
+            const data = await response.text();
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(data, "text/xml");
+            
+            const items = xmlDoc.querySelectorAll("item");
+            const parsedItems = [];
+            
+            for (const item of items) {
+              // Find image in media:content, enclosure, or description
+              let imageUrl = "";
+              const mediaContent = item.querySelector("media\\:content, content");
+              const enclosure = item.querySelector("enclosure");
+              
+              if (mediaContent && mediaContent.getAttribute("url")) {
+                imageUrl = mediaContent.getAttribute("url") || "";
+              } else if (enclosure && enclosure.getAttribute("url") && enclosure.getAttribute("type")?.startsWith("image/")) {
+                imageUrl = enclosure.getAttribute("url") || "";
+              } else {
+                // Try to extract image from description
+                const description = item.querySelector("description")?.textContent || "";
+                const imgMatch = description.match(/<img[^>]+src="([^">]+)"/);
+                if (imgMatch && imgMatch[1]) {
+                  imageUrl = imgMatch[1];
+                }
+              }
+              
+              const title = item.querySelector("title")?.textContent || "No title";
+              const description = item.querySelector("description")?.textContent || "";
+              const pubDate = item.querySelector("pubDate")?.textContent || new Date().toUTCString();
+              const link = item.querySelector("link")?.textContent || "#";
+              const sourceName = source.name;
+              
+              const newsItem = {
+                title,
+                description,
+                pubDate,
+                link,
+                imageUrl: imageUrl || undefined,
+                sourceName,
+                category: categorizeNewsItem(title, description)
+              };
+              
+              parsedItems.push(newsItem);
+            }
+            
+            return parsedItems;
+          } catch (error) {
+            console.error(`Error fetching ${source.name} RSS feed:`, error);
+            return [];
           }
-          
-          const title = item.querySelector("title")?.textContent || "No title";
-          const description = item.querySelector("description")?.textContent || "";
-          const pubDate = item.querySelector("pubDate")?.textContent || new Date().toUTCString();
-          const link = item.querySelector("link")?.textContent || "#";
-          
-          const newsItem = {
-            title,
-            description,
-            pubDate,
-            link,
-            imageUrl: imageUrl || undefined,
-            category: categorizeNewsItem(title, description)
-          };
-          
-          parsedItems.push(newsItem);
-        }
+        });
         
-        setNewsItems(parsedItems);
+        // Wait for all feeds to be fetched
+        const allItemsArrays = await Promise.all(feedPromises);
+        
+        // Flatten array of arrays into a single array
+        const allItems = allItemsArrays.flat();
+        
+        // Sort by publication date (newest first)
+        allItems.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+        
+        setNewsItems(allItems);
         setLoading(false);
         setError("");
       } catch (err) {
-        console.error("Error fetching RSS feed:", err);
+        console.error("Error fetching RSS feeds:", err);
         setError("Failed to load news. Please try again later.");
         setLoading(false);
       }
     };
 
-    fetchRssFeed();
-  }, [feedUrl]);
+    fetchAllRssFeeds();
+  }, []);
 
   const filteredNewsItems = selectedCategory === "all" 
     ? newsItems 
@@ -92,7 +113,7 @@ const CategorizedNewsList = ({ feedUrl, selectedCategory }: CategorizedNewsListP
     return (
       <div className="flex justify-center items-center py-20">
         <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-        <span className="ml-2 text-gray-600">Loading news...</span>
+        <span className="ml-2 text-gray-600">Loading news from all sources...</span>
       </div>
     );
   }
@@ -124,7 +145,7 @@ const CategorizedNewsList = ({ feedUrl, selectedCategory }: CategorizedNewsListP
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-4">
         {filteredNewsItems.map((item, index) => (
-          <NewsItem key={index} {...item} />
+          <NewsItem key={index} {...item} sourceName={item.sourceName} />
         ))}
       </div>
     </div>

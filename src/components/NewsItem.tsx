@@ -8,9 +8,10 @@ export interface NewsItemProps {
   pubDate: string;
   link: string;
   imageUrl?: string;
+  sourceName?: string;
 }
 
-const NewsItem = ({ title, description, pubDate, link, imageUrl }: NewsItemProps) => {
+const NewsItem = ({ title, description, pubDate, link, imageUrl, sourceName }: NewsItemProps) => {
   const formattedDate = formatDistanceToNow(new Date(pubDate), { addSuffix: true });
   
   // Clean description by removing HTML tags
@@ -34,6 +35,11 @@ const NewsItem = ({ title, description, pubDate, link, imageUrl }: NewsItemProps
         )}
         <CardHeader className="pb-2">
           <CardTitle className="text-lg font-bold line-clamp-2">{title}</CardTitle>
+          {sourceName && (
+            <div className="text-xs text-blue-600 font-medium mt-1">
+              {sourceName}
+            </div>
+          )}
         </CardHeader>
         <CardContent className="flex-grow pb-2">
           <CardDescription className="line-clamp-3">{cleanDescription}</CardDescription>

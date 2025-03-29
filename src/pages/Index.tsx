@@ -1,27 +1,18 @@
 
 import { useState } from "react";
 import NewsHeader from "@/components/NewsHeader";
-import NewsSourceSelector, { NEWS_SOURCES, NewsSource } from "@/components/NewsSourceSelector";
-import CategorizedNewsList from "@/components/CategorizedNewsList";
 import NewsCategories from "@/components/NewsCategories";
+import CategorizedNewsList from "@/components/CategorizedNewsList";
+import { NEWS_SOURCES } from "@/components/NewsSourceSelector";
 
 const Index = () => {
-  const [currentSource, setCurrentSource] = useState<NewsSource>(NEWS_SOURCES[0]);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-
-  const handleSourceChange = (newSource: NewsSource) => {
-    setCurrentSource(newSource);
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <NewsHeader sourceName={currentSource.name} sourceUrl={currentSource.url} />
+      <NewsHeader sourceName="NewsHub" sourceUrl="#" />
       <div className="container mx-auto px-4 pt-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-          <NewsSourceSelector 
-            currentSource={currentSource} 
-            onSourceChange={handleSourceChange} 
-          />
           <NewsCategories 
             selectedCategory={selectedCategory}
             onCategoryChange={setSelectedCategory}
@@ -30,7 +21,6 @@ const Index = () => {
       </div>
       <main className="container mx-auto px-4 py-4 flex-grow">
         <CategorizedNewsList 
-          feedUrl={currentSource.feedUrl}
           selectedCategory={selectedCategory}
         />
       </main>
