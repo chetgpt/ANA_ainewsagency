@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import NewsItem, { NewsItemProps } from "./NewsItem";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -171,6 +170,8 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
           <span className="text-red-600">{analysisStats.negative} Negative</span>
           <span className="mx-1">•</span>
           <span className="text-blue-600">{analysisStats.neutral} Neutral</span>
+          <span className="mx-1">•</span>
+          <span className="text-gray-600">Hover for full analysis</span>
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-4">

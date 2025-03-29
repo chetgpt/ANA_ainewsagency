@@ -1,4 +1,3 @@
-
 /**
  * Text analysis utilities for news content
  */
@@ -95,4 +94,56 @@ export function calculateReadingTime(text: string): number {
   const wordsPerMinute = 200; // Average reading speed
   const wordCount = text.split(/\s+/).length;
   return Math.ceil(wordCount / wordsPerMinute * 60);
+}
+
+// New function to fetch and parse full article content
+export async function fetchArticleContent(url: string): Promise<string> {
+  try {
+    // Use a CORS proxy to fetch the article
+    const corsProxy = "https://api.allorigins.win/raw?url=";
+    const response = await fetch(`${corsProxy}${encodeURIComponent(url)}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch article: ${response.status}`);
+    }
+    
+    const html = await response.text();
+    
+    // Create a DOM parser
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    
+    // Try common article content selectors
+    // This is a simplified approach - real-world implementations would use more sophisticated methods
+    const contentSelectors = [
+      "article", ".article", ".post-content", ".entry-content", 
+      ".content", "#content", "main", ".main"
+    ];
+    
+    let content = "";
+    
+    // Try each selector
+    for (const selector of contentSelectors) {
+      const element = doc.querySelector(selector);
+      if (element) {
+        content = element.textContent || "";
+        break;
+      }
+    }
+    
+    // If we couldn't find content with selectors, take the body content
+    if (!content) {
+      const body = doc.querySelector("body");
+      content = body ? body.textContent || "" : "";
+    }
+    
+    // Clean the content
+    return content
+      .replace(/\s+/g, " ")  // Replace multiple whitespace with single space
+      .trim();               // Trim leading/trailing whitespace
+    
+  } catch (error) {
+    console.error("Error fetching article content:", error);
+    return ""; // Return empty string on error
+  }
 }
