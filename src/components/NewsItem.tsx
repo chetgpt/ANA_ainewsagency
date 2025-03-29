@@ -51,14 +51,9 @@ const NewsItem = ({
   
   return (
     <Card className={cardClasses}>
-      <a 
-        href={link} 
-        target="_blank" 
-        rel="noopener noreferrer" 
-        className="h-full flex flex-col"
-      >
+      <div className="h-full flex flex-col">
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-bold line-clamp-2">{cleanTitle}</CardTitle>
+          <CardTitle className="text-lg font-bold line-clamp-2">{cleanTitle || "No content available"}</CardTitle>
           {extractedSource && (
             <div className="text-xs text-blue-600 font-medium mt-1">
               {extractedSource}
@@ -81,21 +76,21 @@ const NewsItem = ({
           ) : (
             <div className="mb-3">
               <div className="text-xs font-medium text-gray-700 mb-1">
-                {isSummarized ? "Summary generation pending" : "Summary not yet generated"}
+                {isSummarized ? "No content available" : "No RSS feeds configured"}
               </div>
               <CardDescription className="line-clamp-3 text-gray-500 italic">
                 {isSummarized ? 
-                  "Our AI is still working on a concise summary for this article." : 
-                  "Click 'Generate Summaries' to create AI summaries."
+                  "No content is available to display." : 
+                  "Please add RSS feeds to begin seeing content."
                 }
               </CardDescription>
             </div>
           )}
         </CardContent>
         <CardFooter className="pt-0 text-xs text-gray-500">
-          {formattedDate}
+          {link ? <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Read more</a> : formattedDate}
         </CardFooter>
-      </a>
+      </div>
     </Card>
   );
 };

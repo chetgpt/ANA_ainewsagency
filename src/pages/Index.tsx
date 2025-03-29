@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import NewsHeader from "@/components/NewsHeader";
 import NewsList from "@/components/NewsList";
@@ -99,7 +98,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <NewsHeader 
-        sourceName="All News Sources" 
+        sourceName="No News Sources" 
         sourceUrl="#" 
         isProcessing={summarizingCount > 0}
         processingCount={summarizingCount}
@@ -107,7 +106,7 @@ const Index = () => {
       />
       <main className="container mx-auto px-4 py-4 flex-grow">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">Latest News Summary</h2>
+          <h2 className="text-2xl font-bold">No RSS Feeds Configured</h2>
           <div className="flex items-center space-x-4">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -126,21 +125,6 @@ const Index = () => {
                   {showDebug ? "Hide Debug Panel" : "Show Debug Panel"}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={() => {
-                    const list = document.querySelector('div[class*="NewsList"]');
-                    if (list) {
-                      const clearCacheButton = list.querySelector('button:first-of-type');
-                      if (clearCacheButton && clearCacheButton instanceof HTMLElement) {
-                        clearCacheButton.click();
-                      }
-                    }
-                  }} 
-                  className="text-red-500 cursor-pointer"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Clear Cache
-                </DropdownMenuItem>
                 {showDebug && (
                   <DropdownMenuItem 
                     onClick={clearDebugLogs} 
@@ -183,19 +167,21 @@ const Index = () => {
               )}
             </div>
             
-            <p>Fetching from multiple RSS sources</p>
-            <p>Check the browser console (F12) for detailed RSS fetch logs.</p>
+            <p>No RSS sources configured</p>
+            <p>Check the browser console (F12) for detailed logs.</p>
           </div>
         )}
         
-        <NewsList 
-          onStatusUpdate={handleStatusUpdate} 
-          combineAllSources={true}
-        />
+        <div className="bg-white shadow rounded-lg p-6 text-center">
+          <h3 className="text-xl mb-4">No RSS Feeds Available</h3>
+          <p className="text-gray-600 mb-4">
+            All RSS feeds have been removed from the application.
+          </p>
+        </div>
       </main>
       <footer className="bg-gray-100 border-t border-gray-200 py-4">
         <div className="container mx-auto px-4 text-center text-sm text-gray-600">
-          &copy; {new Date().getFullYear()} NewsHub - Combined RSS News Reader
+          &copy; {new Date().getFullYear()} NewsHub - No RSS Feeds Configured
         </div>
       </footer>
     </div>
