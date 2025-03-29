@@ -1,17 +1,10 @@
-
 import { useState, useEffect } from "react";
-import { Loader2, FileText, Copy, Newspaper, Settings } from "lucide-react";
+import { Loader2, FileText, Copy, Newspaper } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { generateNewsScript, analyzeSentiment, extractKeywords, calculateReadingTime, fetchArticleContent } from "@/utils/textAnalysis";
-import ApiKeyForm from "./ApiKeyForm";
 import { Button } from "@/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { checkApiAvailability } from "@/utils/llmService";
 
 interface CategorizedNewsListProps {
@@ -20,7 +13,6 @@ interface CategorizedNewsListProps {
 
 const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => {
   const [loading, setLoading] = useState(true);
-  const [showSettings, setShowSettings] = useState(false);
   const [apiStatus, setApiStatus] = useState<{
     geminiAvailable: boolean;
     perplexityAvailable: boolean;
@@ -222,30 +214,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">News Summary</h2>
-        <div className="flex items-center gap-2">
-          <div className="text-sm mr-2">
-            API: {apiStatus.geminiAvailable ? 
-              <span className="text-green-600">Gemini ✓</span> : 
-              apiStatus.perplexityAvailable ? 
-                <span className="text-blue-600">Perplexity ✓</span> : 
-                <span className="text-red-600">None ✗</span>}
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setShowSettings(!showSettings)}
-          >
-            <Settings className="h-4 w-4 mr-2" />
-            API Settings
-          </Button>
-        </div>
       </div>
-      
-      <Collapsible open={showSettings} onOpenChange={setShowSettings}>
-        <CollapsibleContent>
-          <ApiKeyForm />
-        </CollapsibleContent>
-      </Collapsible>
       
       {!script ? (
         <div className="flex justify-center items-center py-10">
