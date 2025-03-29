@@ -1,6 +1,8 @@
+
 import { useState, useEffect } from "react";
 import NewsHeader from "@/components/NewsHeader";
 import NewsList from "@/components/NewsList";
+import NewsSourceSelector, { NEWS_SOURCES } from "@/components/NewsSourceSelector";
 import { Bug, Settings, Trash2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -13,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const Index = () => {
+  const [currentSource, setCurrentSource] = useState(NEWS_SOURCES[0]); // Default to first source (BBC News)
   const [summarizingCount, setSummarizingCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [showDebug, setShowDebug] = useState(true); // Default to showing debug
@@ -27,6 +30,11 @@ const Index = () => {
     if (lastUpdate) {
       setLastUpdated(lastUpdate);
     }
+  };
+
+  // Handle changing the news source
+  const handleSourceChange = (source: { name: string; url: string; feedUrl: string }) => {
+    setCurrentSource(source);
   };
 
   // Toggle debug panel
@@ -89,18 +97,16 @@ const Index = () => {
 
   // Force a console.log of debug info
   useEffect(() => {
-    console.log("NewsHub Application Starting - Google News Search Version");
+    console.log(`NewsHub Application Starting - ${currentSource.name} Version`);
     console.log("User Agent:", navigator.userAgent);
     console.log("Window Size:", window.innerWidth, "x", window.innerHeight);
-  }, []);
-
-  const googleNewsFeedUrl = "https://news.google.com/news/rss/search?q=news&hl=en";
+  }, [currentSource.name]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <NewsHeader 
-        sourceName="Google News - Search" 
-        sourceUrl="https://news.google.com" 
+        sourceName={currentSource.name} 
+        sourceUrl={currentSource.url} 
         isProcessing={summarizingCount > 0}
         processingCount={summarizingCount}
         lastUpdated={lastUpdated}
@@ -175,7 +181,8 @@ const Index = () => {
                       <span className={activity.status.includes('Error') ? 'text-red-500' : 'text-green-600'}>
                         {activity.status}
                       </span>: {activity.url.substring(0, 80)}...
-                        {activity.url.includes('google.com') && <strong className="text-blue-600"> (Google Feed)</strong>}
+                        {activity.url.includes(currentSource.url) && 
+                          <strong className="text-blue-600"> ({currentSource.name} Feed)</strong>}
                     </li>
                   ))}
                 </ul>
@@ -184,19 +191,26 @@ const Index = () => {
               )}
             </div>
             
-            <p>Current RSS Source: <strong>{googleNewsFeedUrl}</strong></p>
+            <p>Current RSS Source: <strong>{currentSource.feedUrl}</strong></p>
             <p>Check the browser console (F12) for detailed RSS fetch logs.</p>
           </div>
         )}
         
+        <div className="mb-4">
+          <NewsSourceSelector 
+            currentSource={currentSource} 
+            onSourceChange={handleSourceChange}
+          />
+        </div>
+        
         <NewsList 
           onStatusUpdate={handleStatusUpdate} 
-          feedUrl={googleNewsFeedUrl} 
+          feedUrl={currentSource.feedUrl} 
         />
       </main>
       <footer className="bg-gray-100 border-t border-gray-200 py-4">
         <div className="container mx-auto px-4 text-center text-sm text-gray-600">
-          &copy; {new Date().getFullYear()} Google News - RSS News Reader
+          &copy; {new Date().getFullYear()} {currentSource.name} - RSS News Reader
         </div>
       </footer>
     </div>
