@@ -1,7 +1,7 @@
 /**
  * Text analysis utilities for news content
  */
-import { analyzeLLM, generateScriptWithLLM, detectNonNewsWithLLM, identifyMediaWithLLM } from './llmService';
+import { analyzeLLM, generateScriptWithLLM } from './llmService';
 
 // Analyzes sentiment of text (very basic implementation)
 export function analyzeSentiment(text: string): "positive" | "negative" | "neutral" {
@@ -177,72 +177,6 @@ export async function fetchArticleContent(url: string): Promise<string> {
   }
 }
 
-// Function to detect non-news content
-export async function detectNonNewsContent(title: string, description: string): Promise<boolean> {
-  try {
-    // Try to use LLM for detection
-    return await detectNonNewsWithLLM(title, description);
-  } catch (error) {
-    console.warn("LLM detection failed, falling back to basic heuristics:", error);
-    
-    // Simple fallback: check for common patterns in non-news content
-    const nonNewsKeywords = [
-      "advertise", "advertisement", "sponsor", "sponsored", 
-      "buy now", "limited time", "discount", "sale", "subscribe", 
-      "podcast episode", "webinar", "register now",
-      "opinion:", "editorial:", "column:", "commentary:",
-      "quiz", "poll", "survey", "test your knowledge"
-    ];
-    
-    const combinedText = (title + " " + description).toLowerCase();
-    return nonNewsKeywords.some(keyword => combinedText.includes(keyword.toLowerCase()));
-  }
-}
-
-// Function to extract media information from content
-export async function extractMediaInfo(title: string, content: string): Promise<{
-  hasImage: boolean;
-  hasVideo: boolean;
-  imageUrls?: string[];
-  videoUrls?: string[];
-}> {
-  try {
-    // Try to use LLM to identify media content
-    return await identifyMediaWithLLM(title, content);
-  } catch (error) {
-    console.warn("LLM media identification failed, falling back to basic extraction:", error);
-    
-    // Fallback: Basic regex patterns to find media URLs
-    const imageRegex = /<img[^>]+src="([^">]+)"/g;
-    const videoRegex = /<video[^>]+src="([^>]+)"|<iframe[^>]+src="([^">]+youtube|vimeo)/g;
-    
-    // Extract all image matches
-    const imageMatches = content.match(imageRegex);
-    const imageUrls = imageMatches ? 
-      imageMatches.map(match => {
-        const src = match.match(/src="([^">]+)"/);
-        return src ? src[1] : null;
-      }).filter(Boolean) as string[] : 
-      [];
-    
-    // Extract all video matches
-    const videoMatches = content.match(videoRegex);
-    const videoUrls = videoMatches ? 
-      videoMatches.map(match => {
-        const src = match.match(/src="([^">]+)"/);
-        return src ? src[1] : null;
-      }).filter(Boolean) as string[] : 
-      [];
-    
-    return {
-      hasImage: imageUrls.length > 0,
-      hasVideo: videoUrls.length > 0,
-      imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
-      videoUrls: videoUrls.length > 0 ? videoUrls : undefined
-    };
-  }
-}
-
 // Function to fully analyze an article
 export async function fullAnalyzeArticle(article: {
   title: string;
@@ -253,13 +187,6 @@ export async function fullAnalyzeArticle(article: {
   sentiment: "positive" | "negative" | "neutral";
   keywords: string[];
   readingTimeSeconds: number;
-  isNewsContent: boolean;
-  media?: {
-    hasImage: boolean;
-    hasVideo: boolean;
-    imageUrls?: string[];
-    videoUrls?: string[];
-  };
 }> {
   try {
     const fullContent = await fetchArticleContent(article.link);
@@ -267,12 +194,6 @@ export async function fullAnalyzeArticle(article: {
     if (!fullContent) {
       throw new Error("Could not retrieve article content");
     }
-    
-    // Check if this is actual news content
-    const isNewsContent = await detectNonNewsContent(article.title, fullContent);
-    
-    // Extract media information
-    const mediaInfo = await extractMediaInfo(article.title, fullContent);
     
     // Try to use LLM for analysis first
     try {
@@ -282,9 +203,7 @@ export async function fullAnalyzeArticle(article: {
         fullContent,
         sentiment: llmAnalysis.sentiment,
         keywords: llmAnalysis.keywords,
-        readingTimeSeconds: calculateReadingTime(fullContent),
-        isNewsContent,
-        media: mediaInfo
+        readingTimeSeconds: calculateReadingTime(fullContent)
       };
     } catch (llmError) {
       console.warn("LLM analysis failed, falling back to local analysis:", llmError);
@@ -299,9 +218,7 @@ export async function fullAnalyzeArticle(article: {
         fullContent,
         sentiment,
         keywords,
-        readingTimeSeconds,
-        isNewsContent,
-        media: mediaInfo
+        readingTimeSeconds
       };
     }
   } catch (error) {
@@ -314,9 +231,6 @@ export async function fullAnalyzeArticle(article: {
 export function groupSimilarNews(newsItems: any[]): any[] {
   if (!newsItems.length) return [];
   
-  // Filter out non-news content first
-  const actualNewsItems = newsItems.filter(item => item.isNewsContent !== false);
-  
   // Group by sentiment first
   const sentimentGroups: Record<string, any[]> = {
     positive: [],
@@ -325,7 +239,7 @@ export function groupSimilarNews(newsItems: any[]): any[] {
   };
   
   // Add each news item to its sentiment group
-  actualNewsItems.forEach(item => {
+  newsItems.forEach(item => {
     if (item.sentiment) {
       sentimentGroups[item.sentiment].push(item);
     }
@@ -382,8 +296,7 @@ export function groupSimilarNews(newsItems: any[]): any[] {
           sentiment,
           items: similarItems,
           keywords: Array.from(new Set(similarItems.flatMap(item => item.keywords || []))),
-          readingTimeSeconds: similarItems.reduce((total, item) => total + (item.readingTimeSeconds || 0), 0),
-          media: similarItems.find(item => item.media?.hasImage || item.media?.hasVideo)?.media
+          readingTimeSeconds: similarItems.reduce((total, item) => total + (item.readingTimeSeconds || 0), 0)
         });
       } else {
         // Otherwise, add the single item
