@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import NewsItem, { NewsItemProps } from "./NewsItem";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -7,8 +6,7 @@ import { NEWS_SOURCES } from "./NewsSourceSelector";
 import { analyzeSentiment, fullAnalyzeArticle, groupSimilarNews, generateNewsScript } from "@/utils/textAnalysis";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 interface CategorizedNewsListProps {
   selectedCategory: string;
@@ -23,7 +21,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   const [rawNewsItems, setRawNewsItems] = useState<any[]>([]);
   const [processedNewsItems, setProcessedNewsItems] = useState<NewsItemFullProps[]>([]);
   const [groupedNewsItems, setGroupedNewsItems] = useState<any[]>([]);
-  const [selectedScript, setSelectedScript] = useState<string | null>(null);
+  const [scripts, setScripts] = useState<{title: string, content: string, type: string}[]>([]);
   const [loading, setLoading] = useState(true);
   const [analysisProgress, setAnalysisProgress] = useState({ total: 0, completed: 0 });
   const [error, setError] = useState("");
@@ -32,7 +30,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     negative: 0,
     neutral: 0
   });
-  const [activeTab, setActiveTab] = useState("articles");
+  const { toast } = useToast();
 
   // Fetch all RSS feeds
   useEffect(() => {
@@ -162,17 +160,32 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
       // Group similar news items after all processing is done
       const grouped = groupSimilarNews(processedItems);
       setGroupedNewsItems(grouped);
+      
+      // Generate scripts for all items (individual and grouped)
+      const newScripts = grouped.map(item => {
+        const script = generateNewsScript(item);
+        const title = item.type === 'group' 
+          ? `Group of ${item.items.length} ${item.sentiment} articles` 
+          : item.title;
+        return {
+          title,
+          content: script,
+          type: item.type || 'single'
+        };
+      });
+      
+      setScripts(newScripts);
+      
+      if (newScripts.length > 0) {
+        toast({
+          title: "Scripts Generated",
+          description: `${newScripts.length} news scripts have been created`,
+        });
+      }
     };
     
     processNewsItems();
   }, [rawNewsItems, loading]);
-
-  // Generate script for a specific news item or group
-  const handleGenerateScript = (item: any) => {
-    const script = generateNewsScript(item);
-    setSelectedScript(script);
-    setActiveTab("script");
-  };
 
   if (loading) {
     return (
@@ -195,9 +208,9 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     return (
       <div className="flex flex-col items-center py-20">
         <Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-4" />
-        <span className="text-gray-600">Analyzing full articles...</span>
+        <span className="text-gray-600">Analyzing news articles...</span>
         <span className="text-sm text-gray-500 mt-2">
-          This may take a while. Full articles will appear as they are processed.
+          This may take a while. Scripts will appear as articles are processed.
         </span>
       </div>
     );
@@ -211,7 +224,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">Fully Analyzed News</h2>
+        <h2 className="text-xl font-semibold">News Scripts</h2>
         <div className="flex items-center gap-1 text-sm bg-gray-100 px-3 py-1 rounded-full">
           <BarChart className="h-4 w-4 text-gray-600" />
           <span>{totalProcessed} of {analysisProgress.total} Articles ({percentComplete}%)</span>
@@ -224,150 +237,49 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         </div>
       </div>
       
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="articles">Articles</TabsTrigger>
-          <TabsTrigger value="grouped">Grouped Articles</TabsTrigger>
-          <TabsTrigger value="script" disabled={!selectedScript}>News Script</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="articles">
-          {processedNewsItems.length === 0 ? (
-            <div className="flex justify-center items-center py-10">
-              <Loader2 className="h-6 w-6 text-blue-600 animate-spin mr-2" />
-              <span className="text-gray-600">Processing articles in the background...</span>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-4">
-              {processedNewsItems.map((item, index) => (
-                <NewsItem 
-                  key={index} 
-                  title={item.title}
-                  description={item.description}
-                  pubDate={item.pubDate}
-                  link={item.link}
-                  sourceName={item.sourceName}
-                  sentiment={item.sentiment}
-                  keywords={item.keywords}
-                  readingTimeSeconds={item.readingTimeSeconds}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="grouped">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-4">
-            {groupedNewsItems.map((item, index) => {
-              // Display grouped items
-              if (item.type === 'group') {
-                return (
-                  <Card key={`group-${index}`} className="h-full hover:shadow-md transition-shadow duration-200">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg font-bold">
-                        Group of {item.items.length} Related Articles
-                      </CardTitle>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        <Badge variant="outline" className={
-                          item.sentiment === 'positive' ? 'bg-green-100 text-green-800' :
-                          item.sentiment === 'negative' ? 'bg-red-100 text-red-800' :
-                          'bg-blue-100 text-blue-800'
-                        }>
-                          {item.sentiment.charAt(0).toUpperCase() + item.sentiment.slice(1)}
-                        </Badge>
-                        
-                        {item.keywords.slice(0, 3).map((keyword: string, kIndex: number) => (
-                          <Badge key={kIndex} variant="outline" className="bg-gray-100">
-                            {keyword}
-                          </Badge>
-                        ))}
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="list-disc pl-5 space-y-2 mb-4">
-                        {item.items.map((newsItem: any, nIndex: number) => (
-                          <li key={nIndex} className="text-sm">
-                            {newsItem.title}
-                            {newsItem.sourceName && <span className="text-xs text-blue-600 ml-1">({newsItem.sourceName})</span>}
-                          </li>
-                        ))}
-                      </ul>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="w-full flex items-center gap-2"
-                        onClick={() => handleGenerateScript(item)}
-                      >
-                        <FileText className="h-4 w-4" />
-                        Generate Script
-                      </Button>
-                    </CardContent>
-                  </Card>
-                );
-              }
-              // Display individual items
-              return (
-                <Card key={`single-${index}`} className="h-full hover:shadow-md transition-shadow duration-200">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg font-bold line-clamp-2">{item.title}</CardTitle>
-                    {item.sourceName && (
-                      <div className="text-xs text-blue-600 font-medium mt-1">
-                        {item.sourceName}
-                      </div>
-                    )}
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-700 line-clamp-3 mb-4">{item.description}</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full flex items-center gap-2"
-                      onClick={() => handleGenerateScript(item)}
-                    >
-                      <FileText className="h-4 w-4" />
-                      Generate Script
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="script">
-          {selectedScript ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+      {scripts.length === 0 ? (
+        <div className="flex justify-center items-center py-10">
+          <Loader2 className="h-6 w-6 text-blue-600 animate-spin mr-2" />
+          <span className="text-gray-600">Generating news scripts...</span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-4">
+          {scripts.map((script, index) => (
+            <Card key={index} className="h-full hover:shadow-md transition-shadow duration-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  News Script
+                  {script.title}
                 </CardTitle>
+                <div className="text-xs text-gray-500 mt-1">
+                  {script.type === 'group' ? 'Multiple Related Articles' : 'Single Article'}
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="bg-gray-50 p-4 rounded-md border">
-                  <pre className="whitespace-pre-wrap text-sm">{selectedScript}</pre>
+                <div className="bg-gray-50 p-4 rounded-md border mb-4">
+                  <pre className="whitespace-pre-wrap text-sm">{script.content}</pre>
                 </div>
-                <div className="mt-4 flex justify-end">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      navigator.clipboard.writeText(selectedScript);
-                      // You could add a toast notification here
-                    }}
-                  >
-                    Copy Script
-                  </Button>
-                </div>
+                <button 
+                  className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                  onClick={() => {
+                    navigator.clipboard.writeText(script.content);
+                    toast({
+                      title: "Copied to clipboard",
+                      description: "The script has been copied to your clipboard",
+                    });
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-clipboard">
+                    <rect width="8" height="4" x="8" y="2" rx="1" ry="1"/>
+                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                  </svg>
+                  Copy to clipboard
+                </button>
               </CardContent>
             </Card>
-          ) : (
-            <div className="text-center py-10 text-gray-500">
-              Select "Generate Script" on an article to view its script
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+          ))}
+        </div>
+      )}
       
       {analysisProgress.completed < analysisProgress.total && (
         <div className="flex justify-center mt-4 text-sm text-gray-500">
