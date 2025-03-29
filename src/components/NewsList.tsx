@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+
+import { useState, useEffect, useRef } from "react";
 import NewsItem, { NewsItemProps } from "./NewsItem";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
@@ -41,6 +42,12 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
   
   // Keep track of actively summarizing items to prevent duplicates
   const [activeSummarizations, setActiveSummarizations] = useState<Set<string>>(new Set());
+  
+  // Reference to track mounted state for async operations
+  const isMounted = useRef(true);
+  
+  // AbortController ref for cleanup
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Use the provided feedUrl or get it from currentSource
   const activeFeedUrl = feedUrl || currentSource.feedUrl;
@@ -104,27 +111,18 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
           isSummarizing: false // Reset summarizing status on load
         }));
         
-        setNewsItems(validatedItems);
-        const timestamp = new Date(parsedData.timestamp);
-        setLastUpdated(timestamp);
-        setLoading(false);
+        console.log(`Loaded ${validatedItems.length} items from cache, timestamp: ${parsedData.timestamp}`);
         
-        console.log(`Loaded ${validatedItems.length} items from cache, timestamp: ${timestamp.toLocaleString()}`);
-        
-        toast({
-          title: "Loaded from cache",
-          description: `Showing cached news from ${timestamp.toLocaleString()}`,
-        });
-        
-        return { items: validatedItems, timestamp: parsedData.timestamp };
-      } else {
-        console.log("No cache found for this feed URL");
+        return {
+          items: validatedItems,
+          timestamp: parsedData.timestamp
+        };
       }
     } catch (err) {
       console.error("Error loading cached news:", err);
       localStorage.removeItem(`news-cache-${activeFeedUrl}`); // Clear corrupted cache
     }
-    return null; // Return null if no cache or error
+    return null;
   };
 
   // Save news items to localStorage for the current feed
@@ -170,7 +168,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       // Clear specific feed cache
       localStorage.removeItem(`news-cache-${activeFeedUrl}`);
       
-      // Optionally, clear ALL feeds cache
+      // Optionally, clear all feeds cache
       for (const source of NEWS_SOURCES) {
         localStorage.removeItem(`news-cache-${source.feedUrl}`);
       }
@@ -363,10 +361,28 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     console.log("Finished summarization queue.");
   };
 
+  // Cleanup function for unmounting
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+      // Abort any ongoing fetch requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   // Force a refresh on initial load - don't use cache
   useEffect(() => {
     console.log("*** INITIAL LOAD: Forcing refresh of RSS feed ***");
     fetchRssFeed(true); // Force refresh on initial load
+    
+    return () => {
+      // Ensure cleanup on unmount
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []); // Empty dependency array means this only runs once
 
   // When activeFeedUrl changes, fetch the new feed
@@ -375,9 +391,32 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       console.log(`Feed URL changed to: ${activeFeedUrl}, fetching new data...`);
       fetchRssFeed();
     }
+    
+    return () => {
+      // Ensure cleanup when feed URL changes
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [activeFeedUrl]);
 
+  // Update parent component with status
+  useEffect(() => {
+    if (onStatusUpdate) {
+      onStatusUpdate(summarizingCount, lastUpdated);
+    }
+  }, [summarizingCount, lastUpdated, onStatusUpdate]);
+
   const fetchRssFeed = async (forceRefresh = false) => {
+    // Abort any ongoing fetch
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create a new AbortController for this fetch
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    
     // Try to load from cache first, unless force refresh is requested
     const cachedNews = !forceRefresh ? loadCachedNews() : null;
     console.log("Cache status:", cachedNews ? "Using cache" : "No cache or force refresh");
@@ -397,6 +436,8 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
         console.log(`Found ${itemsToSummarizeFromCache.length} items in cache needing summarization.`);
         processSummarizationQueue(itemsToSummarizeFromCache);
       }
+      
+      setLoading(false);
       return;
     }
     
@@ -410,13 +451,18 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       console.log(`Full request URL: ${fullUrl}`);
       
       // Add timeout to fetch to prevent hanging
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      // Using both AbortController for cleanup and a timeout
+      const timeoutId = setTimeout(() => {
+        if (abortControllerRef.current) {
+          console.log("Fetch timed out after 15 seconds");
+          abortControllerRef.current.abort();
+        }
+      }, 15000); // 15 second timeout
       
       // Debug fetch status with clearer logs
       console.log("Starting fetch request...");
       const response = await fetch(fullUrl, { 
-        signal: controller.signal,
+        signal: signal,
         headers: {
           'Accept': 'application/rss+xml, application/xml, text/xml, */*'
         }
@@ -477,7 +523,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       
       // Use existing state for comparison
       const currentItemsState = newsItems.length > 0 ? newsItems : (cachedNews?.items || []);
-      const currentItemsMap = new Map(currentItemsState.map(item => [item.id, item],));
+      const currentItemsMap = new Map(currentItemsState.map(item => [item.id, item]));
 
       // Define regex patterns for filtering out non-news items
       const nonNewsTitlePattern = /^\d{1,2}\/\d{1,2}:\s+CBS\s+Evening\s+News(\s+Plus)?$/i;
@@ -504,7 +550,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
         } else {
           // Try to extract image from description
           const description = item.querySelector("description")?.textContent || "";
-          const imgMatch = description.match(/<img[^>]+src="([^">]+)"/);
+          const imgMatch = description.match(/<img[^>]+src="([^"]+)"/);
           if (imgMatch && imgMatch[1]) {
             imageUrl = imgMatch[1];
           }
@@ -597,45 +643,57 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       
       console.log(`Total processed items: ${newParsedItems.length} for display`);
       
-      // Update state with new items (UI component will handle sorting)
-      setNewsItems(newParsedItems);
-      
-      if (newParsedItems.length > 0) {
-        saveCachedNews(newParsedItems);
-      } else {
-        console.warn("No items found within the last 24 hours - check the feed content");
-      }
-      
-      setLoading(false);
-      setError("");
-      
-      // Start background summarization for new items
-      if (itemsToSummarize.length > 0) {
-        toast({
-          title: "Processing content",
-          description: `Generating summaries for ${itemsToSummarize.length} new articles...`,
-        });
+      // Check if the component is still mounted before updating state
+      if (isMounted.current) {
+        // Update state with new items (UI component will handle sorting)
+        setNewsItems(newParsedItems);
         
-        processSummarizationQueue(itemsToSummarize);
-      }
-      
-      if (forceRefresh) {
-        toast({
-          title: "News updated",
-          description: "Latest news has been loaded.",
-        });
+        if (newParsedItems.length > 0) {
+          saveCachedNews(newParsedItems);
+        } else {
+          console.warn("NO items found within the last 24 hours - check the feed content");
+        }
+        
+        setLoading(false);
+        setError("");
+        
+        // Start background summarization for new items
+        if (itemsToSummarize.length > 0) {
+          toast({
+            title: "Processing content",
+            description: `Generating summaries for ${itemsToSummarize.length} new articles...`,
+          });
+          
+          processSummarizationQueue(itemsToSummarize);
+        }
+        
+        if (forceRefresh) {
+          toast({
+            title: "News updated",
+            description: "Latest news has been loaded.",
+          });
+        }
       }
     } catch (err) {
-      console.error("Error fetching RSS feed:", err);
-      const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      setError(`Failed to load news: ${errorMessage}`);
-      setLoading(false);
-      
-      toast({
-        title: "Error loading news",
-        description: errorMessage,
-        variant: "destructive"
-      });
+      // Only process errors if the component is still mounted
+      if (isMounted.current) {
+        // Don't show errors for aborted requests (expected during unmount)
+        if (err instanceof Error && err.name === 'AbortError') {
+          console.log("Fetch aborted - component likely unmounted or feed URL changed");
+          return;
+        }
+        
+        console.error("Error fetching RSS feed:", err);
+        const errorMessage = err instanceof Error ? err.message : "Unknown error";
+        setError(`Failed to load news: ${errorMessage}`);
+        setLoading(false);
+        
+        toast({
+          title: "Error loading news",
+          description: errorMessage,
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -658,7 +716,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     const itemsToProcess = newsItems
       .filter(item => !item.isSummarizing && (!item.summary || !item.isSummarized))
       .map(item => item.id);
-      
+    
     if (itemsToProcess.length > 0) {
       toast({
         title: "Generating summaries",
@@ -673,15 +731,6 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center py-20">
-        <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-        <span className="ml-2 text-gray-600">Loading news...</span>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <Alert variant="destructive" className="my-4">
@@ -690,10 +739,13 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     );
   }
 
-  if (newsItems.length === 0) {
+  if (newsItems.length === 0 && !loading && !error) {
     return (
       <Alert className="my-4">
-        <AlertDescription>No news articles found.</AlertDescription>
+        <AlertDescription>
+          No news articles found for the last 24 hours. 
+          Try selecting a different source or clearing the cache.
+        </AlertDescription>
       </Alert>
     );
   }
@@ -754,15 +806,12 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
         </div>
       )}
       
-      {newsItems.length === 0 && !loading && !error && (
-        <Alert className="my-4">
-          <AlertDescription>
-            No news articles found for the last 24 hours. 
-            Try selecting a different source or clearing the cache.
-          </AlertDescription>
-        </Alert>
+      {loading && (
+        <div className="flex justify-center py-20">
+          <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+        </div>
       )}
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-6">
         {sortedNewsItems.map((item, index) => (
           <NewsItem 
