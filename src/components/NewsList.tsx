@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { analyzeSentiment, extractKeywords, calculateReadingTime } from "@/utils/textAnalysis";
 import { useToast } from "@/hooks/use-toast";
-import NewsSourceSelector, { NewsSource, NEWS_SOURCES } from "./NewsSourceSelector";
+import { NewsSource, NEWS_SOURCES } from "./NewsSourceSelector";
 
 interface NewsListProps {
   feedUrl?: string;
@@ -99,10 +99,21 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(data, "text/xml");
       
+      // Find all items in the RSS feed
       const items = xmlDoc.querySelectorAll("item");
       const newParsedItems: CachedNewsItem[] = [];
       
-      items.forEach((item) => {
+      // Create an array from NodeList and sort it by pubDate (most recent first)
+      const sortedItems = Array.from(items).sort((a, b) => {
+        const dateA = new Date(a.querySelector("pubDate")?.textContent || "").getTime();
+        const dateB = new Date(b.querySelector("pubDate")?.textContent || "").getTime();
+        return dateB - dateA; // Most recent first
+      });
+      
+      // Only take the 10 most recent items
+      const recentItems = sortedItems.slice(0, 10);
+      
+      recentItems.forEach((item) => {
         // Find image in media:content, enclosure, or description
         let imageUrl = "";
         const mediaContent = item.querySelector("media\\:content, content");
@@ -220,16 +231,9 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center">
-          {/* Only show the source selector if no feedUrl is provided as a prop */}
-          {!feedUrl && (
-            <NewsSourceSelector 
-              currentSource={currentSource} 
-              onSourceChange={handleSourceChange} 
-            />
-          )}
+        <div>
           {lastUpdated && (
-            <span className="text-sm text-gray-500 ml-4">
+            <span className="text-sm text-gray-500">
               Last updated: {lastUpdated.toLocaleString()}
             </span>
           )}

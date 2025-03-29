@@ -14,9 +14,6 @@ const NewsHeader = ({ sourceName, sourceUrl }: NewsHeaderProps) => {
           <Newspaper className="h-6 w-6 text-blue-600" />
           <h1 className="text-xl font-bold text-gray-800">NewsHub</h1>
         </div>
-        <div className="text-sm text-gray-600">
-          Source: <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 font-medium">{sourceName}</a>
-        </div>
       </div>
     </header>
   );
