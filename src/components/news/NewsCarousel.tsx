@@ -4,8 +4,6 @@ import {
   Carousel,
   CarouselContent,
   CarouselItem,
-  CarouselNext,
-  CarouselPrevious
 } from "@/components/ui/carousel";
 import NewsScriptCard from "@/components/news/NewsScriptCard";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -62,19 +60,27 @@ const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
         
         <div className="flex justify-center mt-4 gap-2">
           <button 
-            className="flex items-center justify-center h-8 w-8 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
-            onClick={handlePrevious}
+            className="flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 bg-white hover:bg-gray-50 active:bg-gray-100"
+            onClick={() => {
+              console.log("Previous button clicked");
+              handlePrevious();
+            }}
             aria-label="Previous slide"
+            type="button"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-5 w-5" />
           </button>
           
           <button 
-            className="flex items-center justify-center h-8 w-8 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
-            onClick={handleNext}
+            className="flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 bg-white hover:bg-gray-50 active:bg-gray-100"
+            onClick={() => {
+              console.log("Next button clicked");
+              handleNext();
+            }}
             aria-label="Next slide"
+            type="button"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-5 w-5" />
           </button>
         </div>
       </Carousel>
