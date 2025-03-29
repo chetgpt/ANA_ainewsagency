@@ -1,3 +1,4 @@
+
 /**
  * This file contains utilities for interacting with LLM APIs
  */
@@ -323,7 +324,11 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
             parts: [
               {
                 text: `You are a news summary assistant. Create a concise summary of the following news article.
-                Focus only on the key facts, with no commentary or analysis.
+                Use casual, everyday language that's easy to understand for the average reader.
+                Avoid jargon, technical terms, and complex sentences.
+                Explain any complex concepts in simple terms as if you're explaining to a friend.
+                Keep it conversational and use a friendly tone.
+                Focus on the key facts, with no commentary or analysis.
                 Keep it under 200 words and focus on the most important information.
                 
                 Title: ${title}
@@ -375,7 +380,11 @@ async function generateScriptWithPerplexity(title: string, content: string, apiK
           {
             role: 'system',
             content: `You are a news summary assistant. Create a concise summary of the following news article.
-            Focus only on the key facts, with no commentary or analysis.
+            Use casual, everyday language that's easy to understand for the average reader.
+            Avoid jargon, technical terms, and complex sentences.
+            Explain any complex concepts in simple terms as if you're explaining to a friend.
+            Keep it conversational and use a friendly tone.
+            Focus on the key facts, with no commentary or analysis.
             Keep it under 200 words and focus on the most important information.`
           },
           {
