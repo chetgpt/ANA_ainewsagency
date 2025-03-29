@@ -97,253 +97,82 @@ export function calculateReadingTime(text: string): number {
   return Math.ceil(wordCount / wordsPerMinute * 60);
 }
 
-// Function to extract the actual source URL from a Google News URL (if present in the content)
-function extractSourceUrlFromGoogleNews(htmlContent: string): string | null {
-  try {
-    // Pattern 1: Look for canonical link in Google News HTML
-    const canonicalMatch = htmlContent.match(/<link\s+rel="canonical"\s+href="([^"]+)"/i);
-    if (canonicalMatch && canonicalMatch[1] && !canonicalMatch[1].includes('news.google.com')) {
-      console.log(`Found canonical URL: ${canonicalMatch[1]}`);
-      return canonicalMatch[1];
-    }
-    
-    // Pattern 2: Look for redirect URL in a meta refresh tag
-    const metaRefreshMatch = htmlContent.match(/<meta\s+http-equiv="refresh"\s+content="[^"]*url=([^"]+)"/i);
-    if (metaRefreshMatch && metaRefreshMatch[1]) {
-      console.log(`Found meta refresh URL: ${metaRefreshMatch[1]}`);
-      return metaRefreshMatch[1];
-    }
-    
-    // Pattern 3: Look for redirect anchors (specific to Google News format)
-    const anchorMatch = htmlContent.match(/<a\s+[^>]*href="([^"]+)"[^>]*data-n-au=/i);
-    if (anchorMatch && anchorMatch[1]) {
-      let actualUrl = anchorMatch[1];
-      // Handle relative URLs
-      if (actualUrl.startsWith('./')) {
-        actualUrl = 'https://news.google.com/' + actualUrl.substring(2);
-      }
-      console.log(`Found anchor URL: ${actualUrl}`);
-      return actualUrl;
-    }
-    
-    // Pattern 4: Alternative pattern for Google News
-    const urlMatch = htmlContent.match(/window\.location\.replace\(['"]([^'"]+)['"]\)/);
-    if (urlMatch && urlMatch[1]) {
-      console.log(`Found redirect script URL: ${urlMatch[1]}`);
-      return urlMatch[1];
-    }
-    
-    return null;
-  } catch (error) {
-    console.error("Error extracting source URL:", error);
-    return null;
-  }
-}
-
 // Function to fetch and parse full article content
-export async function fetchArticleContent(url: string, signal?: AbortSignal): Promise<string> {
+export async function fetchArticleContent(url: string): Promise<string> {
   try {
-    if (!url || url === "#") {
-      return "";
-    }
-    
     // Use a CORS proxy to fetch the article
     const corsProxy = "https://api.allorigins.win/raw?url=";
-    // Add a cache-busting parameter to avoid getting cached content
-    const urlWithCacheBust = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+    const response = await fetch(`${corsProxy}${encodeURIComponent(url)}`);
     
-    console.log(`Fetching content from URL: ${urlWithCacheBust}`);
-    
-    // Create a local AbortController for this fetch to handle timeouts
-    const localAbortController = new AbortController();
-    let localTimeoutId: number | null = null;
-    
-    // Set up a timeout for the fetch
-    localTimeoutId = window.setTimeout(() => {
-      localAbortController.abort();
-      console.log("Article content fetch timed out after 20 seconds");
-    }, 20000);
-    
-    // Combine the provided signal with our local abort controller if both exist
-    let combinedSignal: AbortSignal;
-    if (signal) {
-      // Create a promise that resolves when either signal aborts
-      const abortPromise = new Promise<never>((_, reject) => {
-        const onAbort = () => {
-          signal.removeEventListener('abort', onAbort);
-          localAbortController.signal.removeEventListener('abort', onAbort);
-          reject(new DOMException('Aborted', 'AbortError'));
-        };
-        
-        signal.addEventListener('abort', onAbort, { once: true });
-        localAbortController.signal.addEventListener('abort', onAbort, { once: true });
-      });
-      
-      // Use the local signal directly since we'll catch the abort event from either signal
-      combinedSignal = localAbortController.signal;
-    } else {
-      combinedSignal = localAbortController.signal;
+    if (!response.ok) {
+      throw new Error(`Failed to fetch article: ${response.status}`);
     }
     
-    try {
-      const response = await fetch(`${corsProxy}${encodeURIComponent(urlWithCacheBust)}`, {
-        signal: combinedSignal
-      });
-      
-      if (localTimeoutId) {
-        clearTimeout(localTimeoutId);
-        localTimeoutId = null;
-      }
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch article: ${response.status}`);
-      }
-      
-      const html = await response.text();
-      console.log(`Fetched article HTML with length: ${html.length}`);
-      
-      // Check if this is a Google News URL, try to extract the actual source URL
-      let finalHtml = html;
-      let actualUrl = null;
-      
-      if (url.includes('news.google.com')) {
-        console.log("Detected Google News URL, attempting to extract source URL...");
-        actualUrl = extractSourceUrlFromGoogleNews(html);
-        
-        if (actualUrl) {
-          console.log(`Found actual source URL: ${actualUrl}, fetching real content...`);
-          try {
-            // Set a new timeout for the source fetch
-            if (localTimeoutId === null) { // Only if we cleared the previous one
-              localTimeoutId = window.setTimeout(() => {
-                localAbortController.abort();
-                console.log("Source article fetch timed out after 20 seconds");
-              }, 20000);
-            }
-            
-            // Fetch the actual content from the source URL
-            const sourceResponse = await fetch(`${corsProxy}${encodeURIComponent(actualUrl)}`, {
-              signal: combinedSignal
-            });
-            
-            if (localTimeoutId) {
-              clearTimeout(localTimeoutId);
-              localTimeoutId = null;
-            }
-            
-            if (sourceResponse.ok) {
-              finalHtml = await sourceResponse.text();
-              console.log(`Successfully fetched source content with length: ${finalHtml.length}`);
-            } else {
-              console.warn(`Failed to fetch from source URL: ${sourceResponse.status}`);
-            }
-          } catch (srcError) {
-            if (localTimeoutId) {
-              clearTimeout(localTimeoutId);
-              localTimeoutId = null;
-            }
-            
-            console.error("Error fetching from source URL:", srcError);
-            // Keep using the original HTML if we can't fetch from the source
+    const html = await response.text();
+    console.log(`Fetched article HTML with length: ${html.length}`);
+    
+    // Create a DOM parser
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    
+    // Try common article content selectors
+    // This is a simplified approach - real-world implementations would use more sophisticated methods
+    const contentSelectors = [
+      "article", ".article", ".post-content", ".entry-content", 
+      ".content", "#content", "main", ".main", ".story-body", ".article-body",
+      "[data-component='text-block']", ".zn-body__paragraph", ".pf-content"
+    ];
+    
+    let content = "";
+    
+    // Try each selector
+    for (const selector of contentSelectors) {
+      const elements = doc.querySelectorAll(selector);
+      if (elements && elements.length > 0) {
+        console.log(`Found ${elements.length} elements with selector: ${selector}`);
+        // Combine text from all matching elements
+        elements.forEach(element => {
+          if (element.textContent) {
+            content += element.textContent + " ";
           }
-        } else {
-          console.log("Could not extract source URL from Google News page");
+        });
+        if (content) {
+          console.log(`Found content with selector ${selector}, length: ${content.length}`);
+          break;
         }
-      }
-      
-      // Create a DOM parser
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(finalHtml, "text/html");
-      
-      // Try common article content selectors
-      // This is a simplified approach - real-world implementations would use more sophisticated methods
-      const contentSelectors = [
-        "article", ".article", ".post-content", ".entry-content", 
-        "content", "#content", "main", ".main", ".story-body", ".article-body",
-        "[data-component='text-block']", ".zn-body__paragraph", ".pf-content",
-        // Add more selectors that might be common on news sites
-        ".story", ".story-content", "#article-body", ".article__content",
-        ".article-text", ".articleBody", "[itemprop='articleBody']",
-        ".news-content", ".news-article", ".news-detail"
-      ];
-      
-      let content = "";
-      
-      // Try each selector
-      for (const selector of contentSelectors) {
-        const elements = doc.querySelectorAll(selector);
-        if (elements && elements.length > 0) {
-          console.log(`Found ${elements.length} elements with selector: ${selector}`);
-          // Combine text from all matching elements
-          elements.forEach(element => {
-            if (element.textContent) {
-              content += element.textContent + " ";
-            }
-          });
-          if (content) {
-            console.log(`Found content with selector ${selector}, length: ${content.length}`);
-            break;
-          }
-        }
-      }
-      
-      // If we couldn't find content with selectors, try paragraphs
-      if (!content) {
-        console.log("No content found with selectors, trying paragraphs");
-        const paragraphs = doc.querySelectorAll("p");
-        if (paragraphs && paragraphs.length > 0) {
-          // Filter out very short paragraphs which might be UI elements
-          Array.from(paragraphs)
-            .filter(p => p.textContent && p.textContent.length > 20)
-            .forEach(p => {
-              if (p.textContent) {
-                content += p.textContent + " ";
-              }
-            });
-        }
-      }
-      
-      // If we still couldn't find content, use the meta description or any text content
-      if (!content || content.length < 100) {
-        console.log("Insufficient content found, trying meta description");
-        const metaDescription = doc.querySelector("meta[name='description']");
-        if (metaDescription && metaDescription.getAttribute("content")) {
-          content = metaDescription.getAttribute("content") || "";
-        }
-        
-        // If still no content, get all text from body and hope for the best
-        if (!content) {
-          console.log("No content found with paragraphs, using body content");
-          const body = doc.querySelector("body");
-          content = body ? body.textContent || "" : "";
-        }
-      }
-      
-      // Clean the content
-      content = content
-        .replace(/\s+/g, " ")  // Replace multiple whitespace with single space
-        .trim();               // Trim leading/trailing whitespace
-      
-      console.log(`Final cleaned content length: ${content.length}`);
-      return content;
-    } finally {
-      // Clean up timeout if it's still active
-      if (localTimeoutId) {
-        clearTimeout(localTimeoutId);
-      }
-      
-      // If we created our own abort controller, make sure we clean it up
-      if (!signal && !localAbortController.signal.aborted) {
-        localAbortController.abort();
       }
     }
+    
+    // If we couldn't find content with selectors, try paragraphs
+    if (!content) {
+      console.log("No content found with selectors, trying paragraphs");
+      const paragraphs = doc.querySelectorAll("p");
+      if (paragraphs && paragraphs.length > 0) {
+        paragraphs.forEach(p => {
+          if (p.textContent) {
+            content += p.textContent + " ";
+          }
+        });
+      }
+    }
+    
+    // If we still couldn't find content, take the body content
+    if (!content) {
+      console.log("No content found with paragraphs, using body content");
+      const body = doc.querySelector("body");
+      content = body ? body.textContent || "" : "";
+    }
+    
+    // Clean the content
+    content = content
+      .replace(/\s+/g, " ")  // Replace multiple whitespace with single space
+      .trim();               // Trim leading/trailing whitespace
+    
+    console.log(`Final cleaned content length: ${content.length}`);
+    return content;
     
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.log("Article content fetch aborted");
-    } else {
-      console.error("Error fetching article content:", error);
-    }
+    console.error("Error fetching article content:", error);
     return ""; // Return empty string on error
   }
 }
@@ -360,21 +189,15 @@ export async function fullAnalyzeArticle(article: {
   readingTimeSeconds: number;
 }> {
   try {
-    console.log(`Starting full analysis for article: ${article.title}`);
     const fullContent = await fetchArticleContent(article.link);
     
     if (!fullContent) {
-      console.warn(`Could not retrieve content for: ${article.title}`);
       throw new Error("Could not retrieve article content");
     }
     
-    console.log(`Retrieved content length: ${fullContent.length} characters`);
-    
     // Try to use LLM for analysis first
     try {
-      console.log(`Calling LLM for analysis of: ${article.title}`);
       const llmAnalysis = await analyzeLLM(article.title, fullContent);
-      console.log(`LLM analysis successful for: ${article.title}`);
       
       return {
         fullContent,
@@ -383,8 +206,7 @@ export async function fullAnalyzeArticle(article: {
         readingTimeSeconds: calculateReadingTime(fullContent)
       };
     } catch (llmError) {
-      console.warn(`LLM analysis failed for: ${article.title}, error:`, llmError);
-      console.warn("Falling back to local analysis");
+      console.warn("LLM analysis failed, falling back to local analysis:", llmError);
       
       // Fall back to local analysis
       const combinedText = article.title + " " + fullContent;
@@ -521,16 +343,12 @@ export async function generateNewsScript(newsItem: any): Promise<string> {
     const description = newsItem.description;
     const sourceName = newsItem.sourceName;
     
-    // Try to use LLM for script generation first with better logging
+    // Try to use LLM for script generation first
     try {
       const contentToUse = fullContent || description;
-      console.log(`Generating script with LLM for: ${title} (content length: ${contentToUse.length})`);
-      const script = await generateScriptWithLLM(title, contentToUse);
-      console.log(`LLM script generation successful for: ${title}`);
-      return script;
+      return await generateScriptWithLLM(title, contentToUse);
     } catch (llmError) {
-      console.warn(`LLM script generation failed for: ${title}, error:`, llmError);
-      console.warn("Falling back to local generation");
+      console.warn("LLM script generation failed, falling back to local generation:", llmError);
       
       // Create a more complete summary from the full content if available
       let summary = "";

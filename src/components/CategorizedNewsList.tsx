@@ -118,78 +118,75 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
           sourceName: "CNN",
         };
         
-        // When generating script, automatically force summarization
-        try {
-          // Generate a script for the news item - now async function
-          const newsScript = await generateNewsScript(newsItem);
-          console.log("Generated script with length:", newsScript.length);
+        // Generate a script for the news item - now async function
+        const newsScript = await generateNewsScript(newsItem);
+        console.log("Generated script with length:", newsScript.length);
+        
+        const scriptData = {
+          title: newsItem.title,
+          content: newsScript,
+          type: 'single',
+          summary: {
+            description: newsItem.description,
+            sentiment: newsItem.sentiment,
+            keywords: newsItem.keywords,
+            readingTimeSeconds: newsItem.readingTimeSeconds,
+            pubDate: newsItem.pubDate,
+            sourceName: newsItem.sourceName
+          }
+        };
+        
+        setScript(scriptData);
+        
+        toast({
+          title: "News Summary Generated",
+          description: "A comprehensive news summary has been created using AI",
+        });
+      } catch (error) {
+        console.error("Error fetching news:", error);
+        
+        // Fallback to sample data if fetching fails
+        const sampleNewsItem = {
+          title: "Fox News to pay $787 million in Dominion settlement",
+          description: "Fox News will pay more than $787 million to Dominion Voting Systems after the sides hammered out a last-minute settlement Tuesday in the explosive defamation case launched against the right-wing network. Fox acknowledged the court's rulings finding 'certain claims about Dominion to be false.' However, the network will not have to admit on air that it spread election lies.",
+          fullContent: "Fox News will pay more than $787 million to Dominion Voting Systems after the sides hammered out a last-minute settlement Tuesday in the explosive defamation case launched against the right-wing network. Fox acknowledged the court's rulings finding 'certain claims about Dominion to be false.' However, the network will not have to admit on air that it spread election lies. The settlement was announced just as opening statements were about to begin in the high-profile case. Fox was facing the possibility of having to pay $1.6 billion in damages. The settlement means top Fox executives like Rupert Murdoch will not have to testify in the case. Dominion had alleged that Fox knowingly spread false claims that its voting machines were rigged in the 2020 presidential election in order to boost ratings and prevent viewers from defecting to other networks.",
+          sentiment: "negative" as const,
+          keywords: ["Fox News", "Dominion", "settlement"],
+          readingTimeSeconds: 240,
+          pubDate: new Date().toUTCString(),
+          link: "#",
+          sourceName: "NewsHub",
+        };
+        
+        // Generate script - now async function
+        const generateFallbackScript = async () => {
+          const newsScript = await generateNewsScript(sampleNewsItem);
+          console.log("Generated fallback script with sample data");
           
           const scriptData = {
-            title: newsItem.title,
+            title: sampleNewsItem.title,
             content: newsScript,
             type: 'single',
             summary: {
-              description: newsItem.description,
-              sentiment: newsItem.sentiment,
-              keywords: newsItem.keywords,
-              readingTimeSeconds: newsItem.readingTimeSeconds,
-              pubDate: newsItem.pubDate,
-              sourceName: newsItem.sourceName
+              description: sampleNewsItem.description,
+              sentiment: sampleNewsItem.sentiment,
+              keywords: sampleNewsItem.keywords,
+              readingTimeSeconds: sampleNewsItem.readingTimeSeconds,
+              pubDate: sampleNewsItem.pubDate,
+              sourceName: sampleNewsItem.sourceName
             }
           };
           
           setScript(scriptData);
-          
-          toast({
-            title: "News Summary Generated",
-            description: "A comprehensive news summary has been created using AI",
-          });
-        } catch (error) {
-          console.error("Error generating news script:", error);
-          
-          // Fallback to sample data if fetching fails
-          const sampleNewsItem = {
-            title: "Fox News to pay $787 million in Dominion settlement",
-            description: "Fox News will pay more than $787 million to Dominion Voting Systems after the sides hammered out a last-minute settlement Tuesday in the explosive defamation case launched against the right-wing network. Fox acknowledged the court's rulings finding 'certain claims about Dominion to be false.' However, the network will not have to admit on air that it spread election lies.",
-            fullContent: "Fox News will pay more than $787 million to Dominion Voting Systems after the sides hammered out a last-minute settlement Tuesday in the explosive defamation case launched against the right-wing network. Fox acknowledged the court's rulings finding 'certain claims about Dominion to be false.' However, the network will not have to admit on air that it spread election lies. The settlement was announced just as opening statements were about to begin in the high-profile case. Fox was facing the possibility of having to pay $1.6 billion in damages. The settlement means top Fox executives like Rupert Murdoch will not have to testify in the case. Dominion had alleged that Fox knowingly spread false claims that its voting machines were rigged in the 2020 presidential election in order to boost ratings and prevent viewers from defecting to other networks.",
-            sentiment: "negative" as const,
-            keywords: ["Fox News", "Dominion", "settlement"],
-            readingTimeSeconds: 240,
-            pubDate: new Date().toUTCString(),
-            link: "#",
-            sourceName: "NewsHub",
-          };
-          
-          // Generate script - now async function
-          const generateFallbackScript = async () => {
-            const newsScript = await generateNewsScript(sampleNewsItem);
-            console.log("Generated fallback script with sample data");
-            
-            const scriptData = {
-              title: sampleNewsItem.title,
-              content: newsScript,
-              type: 'single',
-              summary: {
-                description: sampleNewsItem.description,
-                sentiment: sampleNewsItem.sentiment,
-                keywords: sampleNewsItem.keywords,
-                readingTimeSeconds: sampleNewsItem.readingTimeSeconds,
-                pubDate: sampleNewsItem.pubDate,
-                sourceName: sampleNewsItem.sourceName
-              }
-            };
-            
-            setScript(scriptData);
-          };
-          
-          generateFallbackScript();
-          
-          toast({
-            title: "Using Sample Data",
-            description: "Couldn't fetch news, using sample data instead",
-            variant: "destructive"
-          });
-        }
+        };
+        
+        generateFallbackScript();
+        
+        toast({
+          title: "Using Sample Data",
+          description: "Couldn't fetch news, using sample data instead",
+          variant: "destructive"
+        });
       } finally {
         setLoading(false);
       }
