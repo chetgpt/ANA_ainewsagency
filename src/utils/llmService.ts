@@ -12,6 +12,9 @@ interface LLMResponse {
 // LLM Provider types
 type LLMProvider = "perplexity" | "gemini";
 
+// Language type
+export type Language = "english" | "indonesian";
+
 // Function to get API key from environment or localStorage
 function getApiKey(keyName: string): string | undefined {
   // Try to get from environment first (for Vite, use import.meta.env)
@@ -26,6 +29,11 @@ function getApiKey(keyName: string): string | undefined {
   console.log(`Source: ${envKey ? "Environment variable" : localKey ? "LocalStorage" : "Not found"}`);
   
   return apiKey;
+}
+
+// Function to get the current language from localStorage (defaults to English)
+export function getCurrentLanguage(): Language {
+  return (localStorage.getItem('preferred-language') as Language) || "english";
 }
 
 // Check API availability and log results
@@ -76,6 +84,84 @@ export async function analyzeLLM(title: string, content: string): Promise<LLMRes
 // Function to analyze content with Gemini
 async function analyzeWithGemini(title: string, content: string, apiKey: string): Promise<LLMResponse> {
   try {
+    // Get the current language
+    const language = getCurrentLanguage();
+    const sensitiveTopics = ["suicide", "terrorism", "shootings", "mass killings", "sexual assault", "hate crimes", "child abuse"];
+    
+    // Check if content contains sensitive topics
+    const hasSensitiveTopic = sensitiveTopics.some(topic => 
+      (title + " " + content).toLowerCase().includes(topic.toLowerCase())
+    );
+    
+    // Construct the system prompt based on whether the content is sensitive
+    const systemPrompt = hasSensitiveTopic 
+      ? `You are a news analysis assistant. Provide a brief, factual summary of the following news article without detailed analysis of causes or consequences. Be sensitive and respectful in your summary.
+      
+        Return a JSON object with the following fields:
+        - summary: A brief factual summary (200-300 words)
+        - sentiment: Either "positive", "negative", or "neutral"
+        - keywords: An array of 3-5 key terms from the article
+        
+        Use ${language === "english" ? "English" : "Indonesian"} language for the response.
+        
+        Respond ONLY with valid JSON.`
+      : `You are a news analysis assistant with web search capabilities. 
+        Analyze the following news article using this comprehensive framework:
+
+        1. Present Event (Anchor)
+           - Define: Who, what, when, and where—citing at least one source or piece of data.
+           - Goal: Establish a clear "anchor" event that everything else revolves around.
+
+        2. Backward Analysis (Causes) with Multiple Layers
+           - Layered Causes: For each immediate cause, list sub-causes (up to 2–3 layers).
+           - Assign Probabilities: E.g., "Cause A: 70%," "Sub-cause A1: 50%."
+           - Fact Basis: Cite relevant info (historical data, reports) for each layer.
+           - Example: "Major Debt (70%) → CFO Resignation (50%)."
+
+        3. Forward Analysis (Effects) with Multiple Layers
+           - Layered Outcomes: For each first-level effect, list sub-effects (again, 2–3 layers).
+           - Assign Probabilities: E.g., "Effect A: 80%," "Sub-effect A1: 40%."
+           - Fact Basis: Reference known patterns or real-time data.
+           - Example: "Layoffs (80%) → Union Strikes (40%)."
+
+        4. Rippling Through Probability Chains
+           - Backward: P(Sub-cause)=P(Main cause)×P(Sub-cause∣Main cause)
+           - Forward: P(Xn+1)=P(Xn)×P(Xn+1∣Xn)
+           - Cite: Each step references at least one supporting fact or source.
+
+        5. Comprehensive Impact List (All Affected Fields)
+           - Collect All Impacts: Generate one consolidated list of every domain, industry, or field affected.
+           - Result: A "Global Impact" list that justifies how these fields connect to the anchor event.
+
+        6. Additional Questions:
+           - Who gains money or power from this?
+           - What previous patterns does this fit into?
+           - What is NOT being reported?
+
+        USE THIS FRAMEWORK FOR YOUR ANALYSIS, BUT DO NOT STRUCTURE YOUR RESPONSE AROUND IT.
+
+        Instead, write a CASUAL, CONVERSATIONAL summary that:
+        - Uses everyday language a non-expert would understand
+        - Avoids jargon, technical terms, and complex sentences
+        - Explains concepts simply as if talking to a friend
+        - Never mentions the framework sections explicitly (don't say "Present Event" or "Backward Analysis")
+        - Flows naturally between ideas without formal section headers
+        - Includes the key insights from your analysis in an approachable way
+        - Mentions major causes and effects with approximate likelihoods in plain language
+        - Points out who benefits and what patterns this fits
+
+        Use web search to find the most accurate and up-to-date information about this topic.
+        Create a conversational summary that's easy to read and understand (400-500 words).
+        
+        Return a JSON object with the following fields:
+        - summary: A conversational summary (400-500 words)
+        - sentiment: Either "positive", "negative", or "neutral"
+        - keywords: An array of 3-5 key terms from the article
+        
+        Use ${language === "english" ? "English" : "Indonesian"} language for the response.
+        
+        Respond ONLY with valid JSON.`;
+
     // Updated to use gemini-2.0-flash model with structured framework for news analysis but casual output
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
@@ -87,64 +173,11 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
           {
             parts: [
               {
-                text: `You are a news analysis assistant with web search capabilities. 
-                Analyze the following news article using this comprehensive framework:
-
-                1. Present Event (Anchor)
-                   - Define: Who, what, when, and where—citing at least one source or piece of data.
-                   - Goal: Establish a clear "anchor" event that everything else revolves around.
-
-                2. Backward Analysis (Causes) with Multiple Layers
-                   - Layered Causes: For each immediate cause, list sub-causes (up to 2–3 layers).
-                   - Assign Probabilities: E.g., "Cause A: 70%," "Sub-cause A1: 50%."
-                   - Fact Basis: Cite relevant info (historical data, reports) for each layer.
-                   - Example: "Major Debt (70%) → CFO Resignation (50%)."
-
-                3. Forward Analysis (Effects) with Multiple Layers
-                   - Layered Outcomes: For each first-level effect, list sub-effects (again, 2–3 layers).
-                   - Assign Probabilities: E.g., "Effect A: 80%," "Sub-effect A1: 40%."
-                   - Fact Basis: Reference known patterns or real-time data.
-                   - Example: "Layoffs (80%) → Union Strikes (40%)."
-
-                4. Rippling Through Probability Chains
-                   - Backward: P(Sub-cause)=P(Main cause)×P(Sub-cause∣Main cause)
-                   - Forward: P(Xn+1)=P(Xn)×P(Xn+1∣Xn)
-                   - Cite: Each step references at least one supporting fact or source.
-
-                5. Comprehensive Impact List (All Affected Fields)
-                   - Collect All Impacts: Generate one consolidated list of every domain, industry, or field affected.
-                   - Result: A "Global Impact" list that justifies how these fields connect to the anchor event.
-
-                6. Additional Questions:
-                   - Who gains money or power from this?
-                   - What previous patterns does this fit into?
-                   - What is NOT being reported?
-
-                USE THIS FRAMEWORK FOR YOUR ANALYSIS, BUT DO NOT STRUCTURE YOUR RESPONSE AROUND IT.
-
-                Instead, write a CASUAL, CONVERSATIONAL summary that:
-                - Uses everyday language a non-expert would understand
-                - Avoids jargon, technical terms, and complex sentences
-                - Explains concepts simply as if talking to a friend
-                - Never mentions the framework sections explicitly (don't say "Present Event" or "Backward Analysis")
-                - Flows naturally between ideas without formal section headers
-                - Includes the key insights from your analysis in an approachable way
-                - Mentions major causes and effects with approximate likelihoods in plain language
-                - Points out who benefits and what patterns this fits
-
-                Use web search to find the most accurate and up-to-date information about this topic.
-                Create a conversational summary that's easy to read and understand (400-500 words).
-                
-                Return a JSON object with the following fields:
-                - summary: A conversational summary based on your framework analysis (400-500 words)
-                - sentiment: Either "positive", "negative", or "neutral"
-                - keywords: An array of 3-5 key terms from the article
+                text: `${systemPrompt}
                 
                 Title: ${title}
                 
-                Content: ${content}
-                
-                Respond ONLY with valid JSON.`
+                Content: ${content}`
               }
             ]
           }
@@ -213,21 +246,29 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
   }
 }
 
-// Function to analyze content with Perplexity
+// Function to analyze content with Perplexity (update with similar sensitivity check)
 async function analyzeWithPerplexity(title: string, content: string, apiKey: string): Promise<LLMResponse> {
   try {
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-sonar-small-128k-online',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a news analysis assistant with web search capabilities.
+    // Get the current language
+    const language = getCurrentLanguage();
+    const sensitiveTopics = ["suicide", "terrorism", "shootings", "mass killings", "sexual assault", "hate crimes", "child abuse"];
+    
+    // Check if content contains sensitive topics
+    const hasSensitiveTopic = sensitiveTopics.some(topic => 
+      (title + " " + content).toLowerCase().includes(topic.toLowerCase())
+    );
+    
+    // Construct the system prompt based on whether the content is sensitive
+    const systemPrompt = hasSensitiveTopic 
+      ? `You are a news analysis assistant. Provide a brief, factual summary of the following news article without detailed analysis of causes or consequences. Be sensitive and respectful in your summary.
+      
+        Return a JSON object with the following fields:
+        - summary: A brief factual summary (200-300 words)
+        - sentiment: Either "positive", "negative", or "neutral"
+        - keywords: An array of 3-5 key terms from the article
+        
+        Use ${language === "english" ? "English" : "Indonesian"} language for the response.`
+      : `You are a news analysis assistant with web search capabilities.
             Analyze the following news article using this comprehensive framework:
 
             1. Present Event (Anchor)
@@ -276,9 +317,24 @@ async function analyzeWithPerplexity(title: string, content: string, apiKey: str
             Create a conversational summary that's easy to read and understand (400-500 words).
             
             Return a JSON object with the following fields:
-            - summary: A conversational summary based on your framework analysis (400-500 words)
+            - summary: A conversational summary (400-500 words)
             - sentiment: Either "positive", "negative", or "neutral"
-            - keywords: An array of 3-5 key terms from the article`
+            - keywords: An array of 3-5 key terms from the article
+            
+            Use ${language === "english" ? "English" : "Indonesian"} language for the response.`;
+
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-sonar-small-128k-online',
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt
           },
           {
             role: 'user',
@@ -426,6 +482,62 @@ export async function generateScriptWithLLM(title: string, content: string): Pro
 // Function to generate script with Gemini
 async function generateScriptWithGemini(title: string, content: string, apiKey: string): Promise<string> {
   try {
+    // Get the current language
+    const language = getCurrentLanguage();
+    const sensitiveTopics = ["suicide", "terrorism", "shootings", "mass killings", "sexual assault", "hate crimes", "child abuse"];
+    
+    // Check if content contains sensitive topics
+    const hasSensitiveTopic = sensitiveTopics.some(topic => 
+      (title + " " + content).toLowerCase().includes(topic.toLowerCase())
+    );
+    
+    // Construct the system prompt based on whether the content is sensitive
+    const systemPrompt = hasSensitiveTopic 
+      ? `You are a news summary assistant. Provide a brief, factual summary of the following news article without detailed analysis of causes or consequences. Be sensitive and respectful in your summary.
+      
+        Use ${language === "english" ? "English" : "Indonesian"} language for the response.`
+      : `You are a news summary assistant with web search capabilities. 
+        Analyze the following news article using this comprehensive framework:
+
+        1. Present Event (Anchor)
+           - Define: Who, what, when, and where—citing at least one source or piece of data.
+           - Goal: Establish a clear "anchor" event that everything else revolves around.
+
+        2. Backward Analysis (Causes) with Multiple Layers
+           - Layered Causes: For each immediate cause, list sub-causes (up to 2–3 layers).
+           - Assign Probabilities: E.g., "Cause A: 70%," "Sub-cause A1: 50%."
+           - Fact Basis: Cite relevant info (historical data, reports) for each layer.
+
+        3. Forward Analysis (Effects) with Multiple Layers
+           - Layered Outcomes: For each first-level effect, list sub-effects (again, 2–3 layers).
+           - Assign Probabilities: E.g., "Effect A: 80%," "Sub-effect A1: 40%."
+           - Fact Basis: Reference known patterns or real-time data.
+
+        4. Comprehensive Impact List (All Affected Fields)
+           - Collect All Impacts: Generate one consolidated list of every domain, industry, or field affected.
+
+        5. Additional Questions:
+           - Who gains money or power from this?
+           - What previous patterns does this fit into?
+           - What is NOT being reported?
+        
+        USE THIS FRAMEWORK FOR YOUR ANALYSIS, BUT DO NOT STRUCTURE YOUR RESPONSE AROUND IT.
+
+        Instead, write a CASUAL, CONVERSATIONAL summary that:
+        - Uses everyday language a non-expert would understand
+        - Avoids jargon, technical terms, and complex sentences
+        - Explains concepts simply as if talking to a friend
+        - Never mentions the framework sections explicitly (don't say "Present Event" or "Backward Analysis")
+        - Flows naturally between ideas without formal section headers
+        - Includes the key insights from your analysis in an approachable way
+        - Mentions major causes and effects with approximate likelihoods in plain language
+        - Points out who benefits and what patterns this fits
+        
+        Use web search to gather the most accurate and current information about this topic.
+        Keep it under 500 words and focus on the most important information in a conversational style.
+        
+        Use ${language === "english" ? "English" : "Indonesian"} language for the response.`;
+
     // Updated to use structured framework for news analysis but casual output
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
@@ -437,45 +549,7 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
           {
             parts: [
               {
-                text: `You are a news summary assistant with web search capabilities. 
-                Analyze the following news article using this comprehensive framework:
-
-                1. Present Event (Anchor)
-                   - Define: Who, what, when, and where—citing at least one source or piece of data.
-                   - Goal: Establish a clear "anchor" event that everything else revolves around.
-
-                2. Backward Analysis (Causes) with Multiple Layers
-                   - Layered Causes: For each immediate cause, list sub-causes (up to 2–3 layers).
-                   - Assign Probabilities: E.g., "Cause A: 70%," "Sub-cause A1: 50%."
-                   - Fact Basis: Cite relevant info (historical data, reports) for each layer.
-
-                3. Forward Analysis (Effects) with Multiple Layers
-                   - Layered Outcomes: For each first-level effect, list sub-effects (again, 2–3 layers).
-                   - Assign Probabilities: E.g., "Effect A: 80%," "Sub-effect A1: 40%."
-                   - Fact Basis: Reference known patterns or real-time data.
-
-                4. Comprehensive Impact List (All Affected Fields)
-                   - Collect All Impacts: Generate one consolidated list of every domain, industry, or field affected.
-
-                5. Additional Questions:
-                   - Who gains money or power from this?
-                   - What previous patterns does this fit into?
-                   - What is NOT being reported?
-                
-                USE THIS FRAMEWORK FOR YOUR ANALYSIS, BUT DO NOT STRUCTURE YOUR RESPONSE AROUND IT.
-
-                Instead, write a CASUAL, CONVERSATIONAL summary that:
-                - Uses everyday language a non-expert would understand
-                - Avoids jargon, technical terms, and complex sentences
-                - Explains concepts simply as if talking to a friend
-                - Never mentions the framework sections explicitly (don't say "Present Event" or "Backward Analysis")
-                - Flows naturally between ideas without formal section headers
-                - Includes the key insights from your analysis in an approachable way
-                - Mentions major causes and effects with approximate likelihoods in plain language
-                - Points out who benefits and what patterns this fits
-                
-                Use web search to gather the most accurate and current information about this topic.
-                Keep it under 500 words and focus on the most important information in a conversational style.
+                text: `${systemPrompt}
                 
                 Title: ${title}
                 
@@ -535,18 +609,21 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
 // Function to generate script with Perplexity
 async function generateScriptWithPerplexity(title: string, content: string, apiKey: string): Promise<string> {
   try {
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-sonar-small-128k-online',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a news summary assistant with web search capabilities. 
+    // Get the current language
+    const language = getCurrentLanguage();
+    const sensitiveTopics = ["suicide", "terrorism", "shootings", "mass killings", "sexual assault", "hate crimes", "child abuse"];
+    
+    // Check if content contains sensitive topics
+    const hasSensitiveTopic = sensitiveTopics.some(topic => 
+      (title + " " + content).toLowerCase().includes(topic.toLowerCase())
+    );
+    
+    // Construct the system prompt based on whether the content is sensitive
+    const systemPrompt = hasSensitiveTopic 
+      ? `You are a news summary assistant. Provide a brief, factual summary of the following news article without detailed analysis of causes or consequences. Be sensitive and respectful in your summary.
+      
+        Use ${language === "english" ? "English" : "Indonesian"} language for the response.`
+      : `You are a news summary assistant with web search capabilities. 
                 Analyze the following news article using this comprehensive framework:
 
                 1. Present Event (Anchor)
@@ -584,7 +661,22 @@ async function generateScriptWithPerplexity(title: string, content: string, apiK
                 - Points out who benefits and what patterns this fits
                 
                 Use web search to gather the most accurate and current information about this topic.
-                Keep it under 500 words and focus on the most important information in a conversational style.`
+                Keep it under 500 words and focus on the most important information in a conversational style.
+                
+                Use ${language === "english" ? "English" : "Indonesian"} language for the response.`;
+
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-sonar-small-128k-online',
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt
           },
           {
             role: 'user',
