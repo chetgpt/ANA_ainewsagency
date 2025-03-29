@@ -97,6 +97,49 @@ export function calculateReadingTime(text: string): number {
   return Math.ceil(wordCount / wordsPerMinute * 60);
 }
 
+// Function to extract the actual source URL from a Google News URL (if present in the content)
+function extractSourceUrlFromGoogleNews(htmlContent: string): string | null {
+  try {
+    // Pattern 1: Look for canonical link in Google News HTML
+    const canonicalMatch = htmlContent.match(/<link\s+rel="canonical"\s+href="([^"]+)"/i);
+    if (canonicalMatch && canonicalMatch[1] && !canonicalMatch[1].includes('news.google.com')) {
+      console.log(`Found canonical URL: ${canonicalMatch[1]}`);
+      return canonicalMatch[1];
+    }
+    
+    // Pattern 2: Look for redirect URL in a meta refresh tag
+    const metaRefreshMatch = htmlContent.match(/<meta\s+http-equiv="refresh"\s+content="[^"]*url=([^"]+)"/i);
+    if (metaRefreshMatch && metaRefreshMatch[1]) {
+      console.log(`Found meta refresh URL: ${metaRefreshMatch[1]}`);
+      return metaRefreshMatch[1];
+    }
+    
+    // Pattern 3: Look for redirect anchors (specific to Google News format)
+    const anchorMatch = htmlContent.match(/<a\s+[^>]*href="([^"]+)"[^>]*data-n-au=/i);
+    if (anchorMatch && anchorMatch[1]) {
+      let actualUrl = anchorMatch[1];
+      // Handle relative URLs
+      if (actualUrl.startsWith('./')) {
+        actualUrl = 'https://news.google.com/' + actualUrl.substring(2);
+      }
+      console.log(`Found anchor URL: ${actualUrl}`);
+      return actualUrl;
+    }
+    
+    // Pattern 4: Alternative pattern for Google News
+    const urlMatch = htmlContent.match(/window\.location\.replace\(['"]([^'"]+)['"]\)/);
+    if (urlMatch && urlMatch[1]) {
+      console.log(`Found redirect script URL: ${urlMatch[1]}`);
+      return urlMatch[1];
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error extracting source URL:", error);
+    return null;
+  }
+}
+
 // Function to fetch and parse full article content
 export async function fetchArticleContent(url: string): Promise<string> {
   try {
@@ -104,6 +147,8 @@ export async function fetchArticleContent(url: string): Promise<string> {
     const corsProxy = "https://api.allorigins.win/raw?url=";
     // Add a cache-busting parameter to avoid getting cached content
     const urlWithCacheBust = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+    
+    console.log(`Fetching content from URL: ${urlWithCacheBust}`);
     const response = await fetch(`${corsProxy}${encodeURIComponent(urlWithCacheBust)}`);
     
     if (!response.ok) {
@@ -113,16 +158,48 @@ export async function fetchArticleContent(url: string): Promise<string> {
     const html = await response.text();
     console.log(`Fetched article HTML with length: ${html.length}`);
     
+    // Check if this is a Google News URL, try to extract the actual source URL
+    let finalHtml = html;
+    let actualUrl = null;
+    
+    if (url.includes('news.google.com')) {
+      console.log("Detected Google News URL, attempting to extract source URL...");
+      actualUrl = extractSourceUrlFromGoogleNews(html);
+      
+      if (actualUrl) {
+        console.log(`Found actual source URL: ${actualUrl}, fetching real content...`);
+        try {
+          // Fetch the actual content from the source URL
+          const sourceResponse = await fetch(`${corsProxy}${encodeURIComponent(actualUrl)}`);
+          if (sourceResponse.ok) {
+            finalHtml = await sourceResponse.text();
+            console.log(`Successfully fetched source content with length: ${finalHtml.length}`);
+          } else {
+            console.warn(`Failed to fetch from source URL: ${sourceResponse.status}`);
+          }
+        } catch (srcError) {
+          console.error("Error fetching from source URL:", srcError);
+          // Keep using the original HTML if we can't fetch from the source
+        }
+      } else {
+        console.log("Could not extract source URL from Google News page");
+      }
+    }
+    
     // Create a DOM parser
     const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
+    const doc = parser.parseFromString(finalHtml, "text/html");
     
     // Try common article content selectors
     // This is a simplified approach - real-world implementations would use more sophisticated methods
     const contentSelectors = [
       "article", ".article", ".post-content", ".entry-content", 
-      ".content", "#content", "main", ".main", ".story-body", ".article-body",
-      "[data-component='text-block']", ".zn-body__paragraph", ".pf-content"
+      "content", "#content", "main", ".main", ".story-body", ".article-body",
+      "[data-component='text-block']", ".zn-body__paragraph", ".pf-content",
+      // Add more selectors that might be common on news sites
+      ".story", ".story-content", "#article-body", ".article__content",
+      ".article-text", ".articleBody", "[itemprop='articleBody']",
+      ".news-content", ".news-article", ".news-detail"
     ];
     
     let content = "";
@@ -150,19 +227,31 @@ export async function fetchArticleContent(url: string): Promise<string> {
       console.log("No content found with selectors, trying paragraphs");
       const paragraphs = doc.querySelectorAll("p");
       if (paragraphs && paragraphs.length > 0) {
-        paragraphs.forEach(p => {
-          if (p.textContent) {
-            content += p.textContent + " ";
-          }
-        });
+        // Filter out very short paragraphs which might be UI elements
+        Array.from(paragraphs)
+          .filter(p => p.textContent && p.textContent.length > 20)
+          .forEach(p => {
+            if (p.textContent) {
+              content += p.textContent + " ";
+            }
+          });
       }
     }
     
-    // If we still couldn't find content, take the body content
-    if (!content) {
-      console.log("No content found with paragraphs, using body content");
-      const body = doc.querySelector("body");
-      content = body ? body.textContent || "" : "";
+    // If we still couldn't find content, use the meta description or any text content
+    if (!content || content.length < 100) {
+      console.log("Insufficient content found, trying meta description");
+      const metaDescription = doc.querySelector("meta[name='description']");
+      if (metaDescription && metaDescription.getAttribute("content")) {
+        content = metaDescription.getAttribute("content") || "";
+      }
+      
+      // If still no content, get all text from body and hope for the best
+      if (!content) {
+        console.log("No content found with paragraphs, using body content");
+        const body = doc.querySelector("body");
+        content = body ? body.textContent || "" : "";
+      }
     }
     
     // Clean the content
