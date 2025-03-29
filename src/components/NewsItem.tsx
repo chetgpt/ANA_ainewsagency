@@ -31,6 +31,12 @@ const NewsItem = ({
 }: NewsItemProps) => {
   const formattedDate = formatDistanceToNow(new Date(pubDate), { addSuffix: true });
   
+  // Clean up title for Google News (remove source name in brackets if present)
+  const cleanTitle = title.replace(/\s*\[[^\]]+\]\s*$/, '');
+  
+  // Extract source from Google News format (typically appears as [Source] at the end)
+  const extractedSource = title.match(/\[([^\]]+)\]\s*$/)?.[1] || sourceName;
+  
   // Determine card styling based on summarization status
   const cardClasses = `h-full transition-shadow duration-200 ${
     isSummarizing ? 'border-blue-300 shadow-sm' : 
@@ -48,10 +54,10 @@ const NewsItem = ({
         className="h-full flex flex-col"
       >
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-bold line-clamp-2">{title}</CardTitle>
-          {sourceName && (
+          <CardTitle className="text-lg font-bold line-clamp-2">{cleanTitle}</CardTitle>
+          {extractedSource && (
             <div className="text-xs text-blue-600 font-medium mt-1">
-              {sourceName}
+              {extractedSource}
             </div>
           )}
         </CardHeader>

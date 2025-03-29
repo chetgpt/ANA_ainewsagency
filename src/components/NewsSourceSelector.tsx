@@ -11,9 +11,9 @@ export interface NewsSource {
 
 export const NEWS_SOURCES: NewsSource[] = [
   {
-    name: "CBS News World",
-    url: "https://www.cbsnews.com/world/",
-    feedUrl: "https://www.cbsnews.com/latest/rss/world",
+    name: "Google News - Top Stories",
+    url: "https://news.google.com",
+    feedUrl: "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1YlY4U0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US:en",
   }
 ];
 
