@@ -1,35 +1,25 @@
 
 import { useState } from "react";
 import NewsHeader from "@/components/NewsHeader";
-import NewsSourceSelector, { NEWS_SOURCES, NewsSource } from "@/components/NewsSourceSelector";
 
 const Index = () => {
-  const [currentSource, setCurrentSource] = useState<NewsSource>(NEWS_SOURCES[0]);
-
-  const handleSourceChange = (newSource: NewsSource) => {
-    setCurrentSource(newSource);
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <NewsHeader sourceName={currentSource.name} sourceUrl={currentSource.url} />
-      <div className="container mx-auto px-4 pt-4">
-        <NewsSourceSelector 
-          currentSource={currentSource} 
-          onSourceChange={handleSourceChange} 
-        />
-      </div>
+      <header className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center space-x-2">
+            <h1 className="text-xl font-bold text-gray-800">NewsHub</h1>
+          </div>
+        </div>
+      </header>
       <main className="container mx-auto px-4 py-4 flex-grow">
         <div className="bg-white p-6 rounded-lg shadow-sm">
-          <h2 className="text-xl font-semibold mb-4">RSS Feed Selected</h2>
-          <p className="text-gray-700 mb-2">
-            <span className="font-medium">Source:</span> {currentSource.name}
+          <h2 className="text-xl font-semibold mb-4">NewsHub App</h2>
+          <p className="text-gray-700 mb-4">
+            Welcome to NewsHub! This is a simple news app template.
           </p>
-          <p className="text-gray-700 mb-2">
-            <span className="font-medium">Feed URL:</span> {currentSource.feedUrl}
-          </p>
-          <p className="text-gray-500 text-sm italic mt-4">
-            News display has been removed as requested, but the RSS feed selection functionality is still active.
+          <p className="text-gray-500 text-sm italic">
+            The RSS feed selection functionality has been removed as requested.
           </p>
         </div>
       </main>
