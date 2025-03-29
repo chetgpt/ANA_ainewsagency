@@ -62,7 +62,7 @@ const NewsItem = ({
           {hasValidSummary ? (
             <div className="mb-3">
               <div className="text-xs font-medium text-green-700 mb-1">AI Summary:</div>
-              <CardDescription className="text-sm">{summary}</CardDescription>
+              <CardDescription className="line-clamp-4">{summary}</CardDescription>
             </div>
           ) : (
             <div className="mb-3 flex items-center justify-center h-full text-center">
