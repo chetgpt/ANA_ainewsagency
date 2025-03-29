@@ -105,28 +105,62 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     fetchAllRssFeeds();
   }, []);
 
-  const getDisplayItems = () => {
+  /**
+   * Processes news items for display based on category and desired text length.
+   * Always removes HTML tags from descriptions.
+   * Allows specifying a maximum length for truncation (primarily for 'summarized' view).
+   *
+   * @param {number} [maxLength=Infinity] - The maximum number of characters for the description
+   * in the 'summarized' view. Defaults to Infinity (no truncation)
+   * if not provided or if not in 'summarized' view.
+   * @returns {Array} An array of processed news items.
+   */
+  const getDisplayItems = (maxLength = Infinity) => { // Use Infinity for default "no limit"
+    // --- Make sure newsItems is an array before processing ---
+    if (!Array.isArray(newsItems)) {
+      console.error("getDisplayItems: newsItems is not an array.");
+      return []; // Return empty array if newsItems isn't valid
+    }
+
+    // 1. Create a base list with HTML stripped from descriptions
+    const textOnlyItems = newsItems.map(item => {
+      // Ensure description exists and is a string before trying to replace
+      const descriptionText = (typeof item.description === 'string')
+        ? item.description.replace(/<[^>]*>?/gm, '') // Remove HTML tags
+        : ''; // Use empty string if description is missing or not a string
+      return {
+        ...item,
+        description: descriptionText // Store the plain text description
+      };
+    });
+
+    // 2. Apply category filtering or summarization logic
     if (selectedCategory === "summarized") {
-      // For summarized view, create truncated versions of all news items
-      return newsItems.map(item => {
-        const cleanDescription = item.description.replace(/<[^>]*>?/gm, '');
-        const summarizedDescription = cleanDescription.length > 100 
-          ? cleanDescription.substring(0, 100) + "..." 
-          : cleanDescription;
-        
+      // Summarized view: Truncate the text-only descriptions if they exceed maxLength
+      return textOnlyItems.map(item => {
+        const needsTruncation = maxLength !== Infinity && item.description.length > maxLength;
+        const finalDescription = needsTruncation
+          ? item.description.substring(0, maxLength) + "..." // Truncate
+          : item.description; // Use full text-only description
+
         return {
           ...item,
-          description: summarizedDescription
+          description: finalDescription
         };
       });
     } else if (selectedCategory === "all") {
-      return newsItems;
+      // All view: Return all items with their full text-only descriptions
+      return textOnlyItems;
     } else {
-      return newsItems.filter(item => item.category === selectedCategory);
+      // Specific category view: Filter the text-only items by category
+      return textOnlyItems.filter(item => item.category === selectedCategory);
     }
   };
 
-  const displayItems = getDisplayItems();
+  // Use a 100-character limit for summarized view
+  const displayItems = selectedCategory === "summarized" 
+    ? getDisplayItems(100) 
+    : getDisplayItems();
 
   if (loading) {
     return (
