@@ -24,7 +24,6 @@ const NewsItem = ({
   title, 
   pubDate, 
   link, 
-  sourceName,
   summary,
   description,
   isSummarized = false,
@@ -34,9 +33,6 @@ const NewsItem = ({
   
   // Clean up title for Google News (remove source name in brackets if present)
   const cleanTitle = title.replace(/\s*\[[^\]]+\]\s*$/, '');
-  
-  // Extract source from Google News format (typically appears as [Source] at the end)
-  const extractedSource = title.match(/\[([^\]]+)\]\s*$/)?.[1] || sourceName;
   
   // Check if summary is a valid AI-generated summary or just the article description
   const hasValidSummary = summary && summary !== description && summary.length > 50;
@@ -54,11 +50,6 @@ const NewsItem = ({
       <div className="h-full flex flex-col">
         <CardHeader className="pb-2">
           <CardTitle className="text-lg font-bold line-clamp-2">{cleanTitle || "No content available"}</CardTitle>
-          {extractedSource && (
-            <div className="text-xs text-blue-600 font-medium mt-1">
-              {extractedSource}
-            </div>
-          )}
         </CardHeader>
         <CardContent className="flex-grow pb-2">
           {isSummarizing ? (
@@ -74,18 +65,15 @@ const NewsItem = ({
               <CardDescription className="line-clamp-4">{summary}</CardDescription>
             </div>
           ) : (
-            <div className="mb-3">
-              <div className="text-xs font-medium text-gray-700 mb-1">
-                {isSummarized ? "Original Description:" : "Description:"}
-              </div>
-              <CardDescription className="line-clamp-3">
-                {description || "No description available."}
+            <div className="mb-3 flex items-center justify-center h-full text-center">
+              <CardDescription className="text-gray-500 italic">
+                {isSummarized ? "No valid summary available." : "Waiting for summary..."}
               </CardDescription>
             </div>
           )}
         </CardContent>
         <CardFooter className="pt-0 text-xs text-gray-500">
-          {link ? <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Read more</a> : formattedDate}
+          {formattedDate}
         </CardFooter>
       </div>
     </Card>
