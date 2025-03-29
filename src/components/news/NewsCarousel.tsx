@@ -39,41 +39,75 @@ const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
   const handleReachEnd = async (index: number) => {
     if (index === scripts.length - 1 && !isLoading) {
       setIsLoading(true);
-      await onLoadMore();
-      setIsLoading(false);
+      try {
+        await onLoadMore();
+      } catch (error) {
+        console.error("Error loading more content:", error);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  // Set up event listener for slide changes
+  // Initialize carousel and set up event listeners when component mounts
   useEffect(() => {
     if (!emblaApi) return;
 
     const onSelect = () => {
-      const currentIndex = emblaApi.selectedScrollSnap();
-      setCurrentIndex(currentIndex);
-      handleReachEnd(currentIndex);
+      const newIndex = emblaApi.selectedScrollSnap();
+      setCurrentIndex(newIndex);
+      handleReachEnd(newIndex);
     };
 
     emblaApi.on("select", onSelect);
     
-    // Cleanup
+    // Force update carousel state on first load
+    emblaApi.reInit();
+    
     return () => {
       emblaApi.off("select", onSelect);
     };
-  }, [emblaApi, scripts.length, onLoadMore]);
+  }, [emblaApi, scripts.length]);
 
   // Handle updates to scripts array
   useEffect(() => {
+    if (!emblaApi) return;
+    
     // Check if new scripts were added
-    if (scripts.length > previousScriptsLength.current && emblaApi) {
-      // Update the carousel
-      emblaApi.reInit();
+    if (scripts.length > previousScriptsLength.current) {
       console.log(`NewsCarousel: Scripts updated from ${previousScriptsLength.current} to ${scripts.length}`);
+      
+      // We need to reinitialize the carousel when new slides are added
+      setTimeout(() => {
+        if (emblaApi) {
+          emblaApi.reInit();
+          console.log("Carousel reinitialized");
+        }
+      }, 10);
     }
     
     // Update the ref with current scripts length
     previousScriptsLength.current = scripts.length;
-  }, [scripts, emblaApi]);
+  }, [scripts.length, emblaApi]);
+
+  // Manually handle next/previous navigation
+  const handlePrevious = () => {
+    if (emblaApi) {
+      emblaApi.scrollPrev();
+    }
+  };
+
+  const handleNext = () => {
+    if (emblaApi) {
+      emblaApi.scrollNext();
+      
+      // If we're moving to the last slide, preload more content
+      const newIndex = emblaApi.selectedScrollSnap();
+      if (newIndex === scripts.length - 1) {
+        handleReachEnd(newIndex);
+      }
+    }
+  };
 
   return (
     <div className="relative">
@@ -108,11 +142,17 @@ const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
         </CarouselContent>
         
         <div className="flex justify-center mt-4 gap-2">
-          <CarouselPrevious className="relative left-0 right-0 h-8 w-8 border-gray-200">
+          <CarouselPrevious 
+            className="relative left-0 right-0 h-8 w-8 border-gray-200"
+            onClick={handlePrevious}
+          >
             <ChevronLeft className="h-4 w-4" />
           </CarouselPrevious>
           
-          <CarouselNext className="relative left-0 right-0 h-8 w-8 border-gray-200">
+          <CarouselNext 
+            className="relative left-0 right-0 h-8 w-8 border-gray-200"
+            onClick={handleNext}
+          >
             <ChevronRight className="h-4 w-4" />
           </CarouselNext>
         </div>

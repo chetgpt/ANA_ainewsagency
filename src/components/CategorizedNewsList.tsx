@@ -108,6 +108,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     }
   };
 
+  // Initial load of first news article
   useEffect(() => {
     const fetchInitialNewsItem = async () => {
       setLoading(true);
@@ -151,6 +152,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     fetchInitialNewsItem();
   }, []);
 
+  // Function to load the next news article from preloaded queue or fetch new one
   const loadNextNews = async () => {
     console.log(`Loading next news. Preloaded: ${preloadedNews.length}, Current: ${scripts.length}`);
     
@@ -166,29 +168,33 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
       setScripts(prev => [...prev, nextNews]);
       
       // If our preloaded queue is getting low, preload more
-      if (preloadedNews.length < 3 && !isPreloading) {
+      if (preloadedNews.length < 2 && !isPreloading) {
         preloadNextBatchOfNews();
       }
-    } else {
-      // If no preloaded news is available, fetch it on demand
-      try {
-        // Fetch next news article
-        const article = await fetchNewsArticle();
-        
-        // Process the article
-        const scriptData = await processNewsArticle(article);
-        
-        // Add the new script to our collection
-        setScripts(prev => [...prev, {
-          id: crypto.randomUUID(),
-          ...scriptData
-        }]);
-        
-        // Start preloading more articles for future use
+      
+      return;
+    }
+    
+    // If no preloaded news is available, fetch it on demand
+    try {
+      // Fetch next news article
+      const article = await fetchNewsArticle();
+      
+      // Process the article
+      const scriptData = await processNewsArticle(article);
+      
+      // Add the new script to our collection
+      setScripts(prev => [...prev, {
+        id: crypto.randomUUID(),
+        ...scriptData
+      }]);
+      
+      // Start preloading more articles for future use
+      if (!isPreloading) {
         preloadNextBatchOfNews();
-      } catch (error) {
-        console.error("Error loading next news:", error);
       }
+    } catch (error) {
+      console.error("Error loading next news:", error);
     }
   };
 
