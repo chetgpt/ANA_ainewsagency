@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 const Index = () => {
   const [summarizingCount, setSummarizingCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [showDebug, setShowDebug] = useState(false);
+  const [showDebug, setShowDebug] = useState(true); // Default to showing debug
   const [lastError, setLastError] = useState<string | null>(null);
 
   // Add a state to track network activity
@@ -44,7 +44,7 @@ const Index = () => {
     window.fetch = async function(input, init) {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : 'unknown';
       
-      setNetworkActivity(prev => [...prev.slice(-4), {url, status: 'pending'}]);
+      setNetworkActivity(prev => [...prev.slice(-6), {url, status: 'pending'}]);
       
       try {
         const response = await originalFetch(input, init);
@@ -75,7 +75,7 @@ const Index = () => {
 
   // Force a console.log of debug info
   useEffect(() => {
-    console.log("NewsHub Application Starting");
+    console.log("NewsHub Application Starting - CBS News Only Version");
     console.log("User Agent:", navigator.userAgent);
     console.log("Window Size:", window.innerWidth, "x", window.innerHeight);
   }, []);
@@ -83,15 +83,15 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <NewsHeader 
-        sourceName="NewsHub" 
-        sourceUrl="#" 
+        sourceName="CBS News World" 
+        sourceUrl="https://www.cbsnews.com/world/" 
         isProcessing={summarizingCount > 0}
         processingCount={summarizingCount}
         lastUpdated={lastUpdated}
       />
       <main className="container mx-auto px-4 py-4 flex-grow">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">Latest News</h2>
+          <h2 className="text-2xl font-bold">Latest World News</h2>
           <div className="flex items-center space-x-4">
             <div className="text-sm text-gray-500">Showing news from the last 24 hours</div>
             <button 
@@ -125,6 +125,7 @@ const Index = () => {
                       <span className={activity.status.includes('Error') ? 'text-red-500' : 'text-green-600'}>
                         {activity.status}
                       </span>: {activity.url.substring(0, 80)}...
+                      {activity.url.includes('cbsnews.com') && <strong className="text-blue-600"> (CBS Feed)</strong>}
                     </li>
                   ))}
                 </ul>
@@ -133,6 +134,7 @@ const Index = () => {
               )}
             </div>
             
+            <p>Current RSS Source: <strong>https://www.cbsnews.com/latest/rss/world</strong></p>
             <p>Check the browser console (F12) for detailed RSS fetch logs.</p>
             
             <Button
@@ -151,11 +153,14 @@ const Index = () => {
           </div>
         )}
         
-        <NewsList onStatusUpdate={handleStatusUpdate} />
+        <NewsList 
+          onStatusUpdate={handleStatusUpdate} 
+          feedUrl="https://www.cbsnews.com/latest/rss/world" 
+        />
       </main>
       <footer className="bg-gray-100 border-t border-gray-200 py-4">
         <div className="container mx-auto px-4 text-center text-sm text-gray-600">
-          &copy; {new Date().getFullYear()} NewsHub - Your RSS News Reader
+          &copy; {new Date().getFullYear()} CBS News World - RSS News Reader
         </div>
       </footer>
     </div>
