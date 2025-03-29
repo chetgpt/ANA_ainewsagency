@@ -53,8 +53,14 @@ const NewsItem = ({
   const sentimentLabel = activeSentiment.charAt(0).toUpperCase() + activeSentiment.slice(1);
   const sentimentSource = llmSentiment ? "AI" : "Basic";
   
+  // Determine card styling based on summarization status
+  const cardClasses = `h-full transition-shadow duration-200 ${
+    isSummarizing ? 'border-blue-300 shadow-sm' : 
+    isSummarized && summary ? 'hover:shadow-md border-green-200' : 'hover:shadow-md'
+  }`;
+  
   return (
-    <Card className="h-full hover:shadow-md transition-shadow duration-200">
+    <Card className={cardClasses}>
       <a 
         href={link} 
         target="_blank" 
@@ -71,7 +77,7 @@ const NewsItem = ({
         </CardHeader>
         <CardContent className="flex-grow pb-2">
           {isSummarizing ? (
-            <div className="flex items-center text-sm text-gray-500 mb-2">
+            <div className="flex items-center text-sm text-blue-600 mb-2 animate-pulse">
               <Loader2 className="h-3 w-3 mr-1 animate-spin" />
               <span>Generating enhanced summary...</span>
             </div>

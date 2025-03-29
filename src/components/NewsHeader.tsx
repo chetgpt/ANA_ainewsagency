@@ -6,13 +6,15 @@ interface NewsHeaderProps {
   sourceUrl: string;
   lastUpdated?: Date | null;
   isProcessing?: boolean;
+  processingCount?: number;
 }
 
 const NewsHeader = ({ 
   sourceName, 
   sourceUrl, 
   lastUpdated,
-  isProcessing = false
+  isProcessing = false,
+  processingCount = 0
 }: NewsHeaderProps) => {
   return (
     <header className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
@@ -25,7 +27,9 @@ const NewsHeader = ({
           {isProcessing && (
             <div className="flex items-center mr-4 text-blue-600">
               <RefreshCw className="h-4 w-4 animate-spin mr-1" />
-              <span className="text-xs">Processing</span>
+              <span className="text-xs">
+                {processingCount > 0 ? `Processing ${processingCount} articles` : 'Processing'}
+              </span>
             </div>
           )}
           {lastUpdated && (

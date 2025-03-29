@@ -10,6 +10,7 @@ import NewsSourceSelector, { NewsSource, NEWS_SOURCES } from "./NewsSourceSelect
 
 interface NewsListProps {
   feedUrl?: string;
+  onStatusUpdate?: (summarizingCount: number, lastUpdated: Date | null) => void;
 }
 
 interface CachedNewsItem extends NewsItemProps {
@@ -19,9 +20,10 @@ interface CachedNewsItem extends NewsItemProps {
   llmSentiment?: "positive" | "negative" | "neutral" | null; // LLM-analyzed sentiment
   llmKeywords?: string[]; // LLM-extracted keywords
   isSummarized: boolean; // Flag to indicate if this item has been summarized
+  isSummarizing?: boolean; // Flag to indicate if this item is currently being summarized
 }
 
-const NewsList = ({ feedUrl }: NewsListProps) => {
+const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
   const [currentSource, setCurrentSource] = useState<NewsSource>(
     NEWS_SOURCES[0] // Default to first source
   );
@@ -29,11 +31,18 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [summarizing, setSummarizing] = useState(false);
+  const [summarizingCount, setSummarizingCount] = useState(0);
   const { toast } = useToast();
 
   // Use the provided feedUrl or get it from currentSource
   const activeFeedUrl = feedUrl || currentSource.feedUrl;
+
+  // Update parent component with current status
+  useEffect(() => {
+    if (onStatusUpdate) {
+      onStatusUpdate(summarizingCount, lastUpdated);
+    }
+  }, [summarizingCount, lastUpdated, onStatusUpdate]);
 
   // Generate a unique ID for a news item based on its content
   const generateNewsItemId = (title: string, pubDate: string, link: string): string => {
@@ -46,32 +55,43 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
       const cachedData = localStorage.getItem(`news-cache-${activeFeedUrl}`);
       if (cachedData) {
         const { items, timestamp } = JSON.parse(cachedData);
-        setNewsItems(items);
+        // Ensure loaded items have the necessary flags
+        const validatedItems = items.map((item: CachedNewsItem) => ({
+          ...item,
+          isSummarized: item.isSummarized || false,
+          isSummarizing: false // Reset summarizing status on load
+        }));
+        
+        setNewsItems(validatedItems);
         setLastUpdated(new Date(timestamp));
         setLoading(false);
         toast({
           title: "Loaded from cache",
           description: `Showing cached news from ${new Date(timestamp).toLocaleString()}`,
         });
-        return true;
+        return { items: validatedItems, timestamp }; // Return cache content
       }
     } catch (err) {
       console.error("Error loading cached news:", err);
+      localStorage.removeItem(`news-cache-${activeFeedUrl}`); // Clear corrupted cache
     }
-    return false;
+    return null; // Return null if no cache or error
   };
 
   // Save news items to localStorage for the current feed
   const saveCachedNews = (items: CachedNewsItem[]) => {
     try {
+      // Ensure isSummarizing is not persisted to cache
+      const itemsToSave = items.map(({ isSummarizing, ...rest }) => rest);
       const cacheData = {
-        items,
+        items: itemsToSave,
         timestamp: new Date().toISOString(),
       };
       localStorage.setItem(`news-cache-${activeFeedUrl}`, JSON.stringify(cacheData));
       setLastUpdated(new Date());
     } catch (err) {
       console.error("Error saving news to cache:", err);
+      // Handle potential storage quota errors
     }
   };
 
@@ -139,92 +159,161 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
   };
 
   // Background summarization function
-  const summarizeItemInBackground = async (itemId: string, currentItems: CachedNewsItem[]) => {
+  const summarizeItemInBackground = async (itemId: string, currentItems: CachedNewsItem[]): Promise<CachedNewsItem | null> => {
     const item = currentItems.find(i => i.id === itemId);
-    if (!item) return;
+    // Ensure item exists and isn't already summarized or being summarized
+    if (!item || item.isSummarized || item.isSummarizing) {
+      console.log(`Skipping summarization for item ${itemId}: Already summarized or in progress.`);
+      return null; // Return null if no action needed
+    }
 
     try {
-      setSummarizing(true);
+      console.log(`Summarizing item ${itemId}: ${item.title}`);
       const fullContent = await fetchArticleContent(item.link);
       const contentToAnalyze = fullContent || item.description;
       
-      // Try to use LLM for analysis
+      // Ensure content exists before calling LLM
+      if (!contentToAnalyze) {
+        console.warn(`No content found to analyze for item ${itemId}`);
+        return { 
+          ...item, 
+          isSummarized: true, 
+          isSummarizing: false, 
+          summary: "No content to summarize." 
+        };
+      }
+      
+      // Try LLM analysis
       try {
         const llmResult = await analyzeLLM(item.title, contentToAnalyze);
         
-        const updatedItem: CachedNewsItem = {
+        console.log(`LLM summarization successful for item ${itemId}`);
+        return {
           ...item,
           summary: llmResult.summary,
           llmSentiment: llmResult.sentiment,
           llmKeywords: llmResult.keywords,
           isSummarized: true,
+          isSummarizing: false,
+          // Update reading time based on full content if available
           readingTimeSeconds: fullContent ? calculateReadingTime(fullContent) : item.readingTimeSeconds,
         };
-        
-        updateNewsItem(updatedItem);
       } catch (llmError) {
-        console.warn("LLM analysis failed, falling back to local analysis:", llmError);
+        console.warn(`LLM analysis failed for item ${itemId}, falling back to local analysis:`, llmError);
         
-        // Fall back to local analysis
+        // Fallback: Use local analysis and store in primary fields
         const combinedText = item.title + " " + contentToAnalyze;
-        const sentiment = analyzeSentiment(combinedText);
-        const keywords = extractKeywords(combinedText, 3);
+        const fallbackSentiment = analyzeSentiment(combinedText);
+        const fallbackKeywords = extractKeywords(combinedText, 3);
+        // Generate a simple fallback summary (e.g., first few sentences)
+        const sentences = contentToAnalyze.split(/\.\s+/);
+        const fallbackSummary = sentences.slice(0, 3).join(". ") + (sentences.length > 3 ? "." : "");
         
-        const updatedItem: CachedNewsItem = {
+        return {
           ...item,
-          sentiment: sentiment,
-          keywords: keywords,
-          isSummarized: true,
+          summary: fallbackSummary, // Use basic summary
+          sentiment: fallbackSentiment, // Store fallback in primary sentiment field
+          keywords: fallbackKeywords, // Store fallback in primary keywords field
+          llmSentiment: null, // Indicate LLM didn't provide this
+          llmKeywords: [], // Indicate LLM didn't provide this
+          isSummarized: true, // Mark as summarized (even with fallback)
+          isSummarizing: false,
           readingTimeSeconds: fullContent ? calculateReadingTime(fullContent) : item.readingTimeSeconds,
         };
-        
-        updateNewsItem(updatedItem);
       }
     } catch (error) {
       console.error(`Error summarizing item ${itemId}:`, error);
       // Mark item as failed summarization
-      const updatedItem = { 
-        ...item, 
-        isSummarized: true, 
+      return {
+        ...item,
+        isSummarized: true, // Mark as summarized (failure state)
+        isSummarizing: false,
         summary: "Could not summarize content."
       };
-      updateNewsItem(updatedItem);
-    } finally {
-      setSummarizing(false);
     }
   };
 
   // Process summarization queue with limited concurrency
-  const processSummarizationQueue = async (itemIds: string[], currentItems: CachedNewsItem[]) => {
+  const processSummarizationQueue = async (
+    itemIds: string[],
+    currentItems: CachedNewsItem[]
+  ) => {
     const MAX_CONCURRENT = 2; // Process up to 2 items at once
+    console.log(`Starting summarization queue for ${itemIds.length} items.`);
     
-    // Process in batches to avoid overwhelming the API
-    for (let i = 0; i < itemIds.length; i += MAX_CONCURRENT) {
-      const batch = itemIds.slice(i, i + MAX_CONCURRENT);
-      await Promise.all(
-        batch.map(itemId => summarizeItemInBackground(itemId, currentItems))
-      );
+    // Filter out IDs that might already be summarized or are currently summarizing
+    const itemsToProcess = itemIds.filter(id => {
+      const item = currentItems.find(i => i.id === id);
+      return item && !item.isSummarized && !item.isSummarizing;
+    });
+    
+    if (itemsToProcess.length === 0) {
+      console.log("No items need summarization in the current queue.");
+      return;
     }
+    
+    console.log(`Processing ${itemsToProcess.length} items in batches of ${MAX_CONCURRENT}.`);
+    
+    // Update status to isSummarizing = true before starting the batch
+    itemsToProcess.forEach(itemId => {
+      const item = currentItems.find(i => i.id === itemId);
+      if (item) {
+        updateNewsItem({ ...item, isSummarizing: true });
+        setSummarizingCount(prev => prev + 1);
+      }
+    });
+    
+    // Process in batches
+    for (let i = 0; i < itemsToProcess.length; i += MAX_CONCURRENT) {
+      const batchIds = itemsToProcess.slice(i, i + MAX_CONCURRENT);
+      console.log(`Processing batch: ${batchIds.join(', ')}`);
+      
+      // Get the latest state for each call to summarizeItemInBackground
+      const latestItems = newsItems;
+      
+      // Process the batch
+      const results = await Promise.all(
+        batchIds.map(itemId => summarizeItemInBackground(itemId, latestItems))
+      );
+      
+      // Update state for items that were successfully processed
+      results.forEach(updatedItem => {
+        if (updatedItem) {
+          console.log(`Updating state for summarized item ${updatedItem.id}`);
+          updateNewsItem(updatedItem);
+          setSummarizingCount(prev => Math.max(0, prev - 1));
+        }
+      });
+      
+      // Small delay between batches to avoid overwhelming the API
+      if (i + MAX_CONCURRENT < itemsToProcess.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    console.log("Finished summarization queue.");
   };
 
   const fetchRssFeed = async (forceRefresh = false) => {
     // Try to load from cache first, unless force refresh is requested
-    if (!forceRefresh && loadCachedNews()) {
-      // Check if there are any items that haven't been summarized yet
-      const itemsToSummarize = newsItems
-        .filter(item => !item.isSummarized)
+    const cachedNews = loadCachedNews();
+    if (!forceRefresh && cachedNews) {
+      // Check if there are any items that haven't been summarized yet from cache
+      const itemsToSummarizeFromCache = newsItems
+        .filter(item => !item.isSummarized && !item.isSummarizing)
         .map(item => item.id);
-        
-      if (itemsToSummarize.length > 0) {
-        processSummarizationQueue(itemsToSummarize, newsItems);
+      
+      if (itemsToSummarizeFromCache.length > 0) {
+        console.log(`Found ${itemsToSummarizeFromCache.length} items in cache needing summarization.`);
+        processSummarizationQueue(itemsToSummarizeFromCache, newsItems);
       }
       return;
     }
-
+    
     try {
       setLoading(true);
       
-      // Use a CORS proxy to fetch the RSS feed
+      // Use a CORS proxy to fetch the RSS feed with cache busting
       const corsProxy = "https://api.allorigins.win/raw?url=";
       const response = await fetch(`${corsProxy}${encodeURIComponent(activeFeedUrl)}?_=${Date.now()}`);
       
@@ -238,13 +327,14 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
       
       const items = xmlDoc.querySelectorAll("item");
       const newParsedItems: CachedNewsItem[] = [];
-      const itemsToSummarize: string[] = []; // Store IDs of new items
+      const itemsToSummarize: string[] = []; // Store IDs of new items needing summarization
       
-      // Create a map for fast lookup of existing items
-      const currentItemsMap = new Map(newsItems.map(item => [item.id, item]));
+      // Use existing state for comparison
+      const currentItemsState = newsItems.length > 0 ? newsItems : (cachedNews?.items || []);
+      const currentItemsMap = new Map(currentItemsState.map(item => [item.id, item]));
       
       items.forEach((item) => {
-        // Find image in media:content, enclosure, or description
+        // Extract data from RSS item
         let imageUrl = "";
         const mediaContent = item.querySelector("media\\:content, content");
         const enclosure = item.querySelector("enclosure");
@@ -263,56 +353,55 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
         }
         
         const title = item.querySelector("title")?.textContent || "No title";
-        const pubDate = item.querySelector("pubDate")?.textContent || new Date().toUTCString();
+        const pubDateStr = item.querySelector("pubDate")?.textContent || new Date().toUTCString();
         const link = item.querySelector("link")?.textContent || "#";
         const description = item.querySelector("description")?.textContent || "";
         
         // Generate a unique ID for this news item
-        const id = generateNewsItemId(title, pubDate, link);
+        const id = generateNewsItemId(title, pubDateStr, link);
         
-        // Check if we already have this item in our current newsItems state
+        // Check if we already have this item
         const existingItem = currentItemsMap.get(id);
         
         if (existingItem && !forceRefresh) {
           // We already have this item, reuse it
           newParsedItems.push(existingItem);
         } else {
-          // This is a new item or we're forcing refresh, do basic analysis immediately
-          // but defer LLM processing to background
-          const combinedText = title + " " + description;
-          const sentiment = analyzeSentiment(combinedText);
-          const keywords = extractKeywords(combinedText, 3);
-          const readingTimeSeconds = calculateReadingTime(description);
+          // Check if it's an update to an existing item or a completely new item
+          const isUpdate = existingItem && forceRefresh;
           
+          // New item or forced refresh: Create basic info, mark for summarization
           const newItem: CachedNewsItem = {
             id,
             title,
             description,
-            pubDate,
+            pubDate: pubDateStr,
             link,
             imageUrl: imageUrl || undefined,
             sourceName: currentSource.name,
-            sentiment,
-            keywords,
-            readingTimeSeconds,
-            summary: null,
-            llmSentiment: null,
-            llmKeywords: [],
-            isSummarized: false,
+            // Do basic analysis immediately for a minimal display
+            sentiment: isUpdate ? existingItem.sentiment : analyzeSentiment(title + " " + description),
+            keywords: isUpdate ? existingItem.keywords : extractKeywords(title + " " + description, 3),
+            readingTimeSeconds: calculateReadingTime(description),
+            // Initialize advanced fields as null/empty
+            summary: isUpdate ? existingItem.summary : null,
+            llmSentiment: isUpdate ? existingItem.llmSentiment : null,
+            llmKeywords: isUpdate ? existingItem.llmKeywords : [],
+            isSummarized: isUpdate ? existingItem.isSummarized : false,
+            isSummarizing: false,
             cached: false
           };
           
           newParsedItems.push(newItem);
-          itemsToSummarize.push(id);
+          
+          // If it's new or wasn't summarized before, add to the queue
+          if (!isUpdate || !newItem.isSummarized) {
+            itemsToSummarize.push(id);
+          }
         }
       });
       
-      // Sort items by publication date (newest first)
-      newParsedItems.sort((a, b) => {
-        return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
-      });
-      
-      // Update state and save to cache
+      // Update state with new items (UI component will handle sorting)
       setNewsItems(newParsedItems);
       saveCachedNews(newParsedItems);
       setLoading(false);
@@ -346,7 +435,7 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
     fetchRssFeed();
   }, [activeFeedUrl]); // This will trigger when either the feedUrl prop or currentSource changes
 
-  // Define a function to sort news items
+  // Define a function to sort news items for display prioritization
   const sortedNewsItems = [...newsItems].sort((a, b) => {
     // First, prioritize summarized items
     if (a.isSummarized && !b.isSummarized) return -1;
@@ -408,18 +497,18 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
           <button
             onClick={refreshNews}
             className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
-            disabled={loading || summarizing}
+            disabled={loading || summarizingCount > 0}
           >
-            <Loader2 className={`h-3 w-3 mr-1 ${(loading || summarizing) ? 'animate-spin' : ''}`} />
+            <Loader2 className={`h-3 w-3 mr-1 ${(loading || summarizingCount > 0) ? 'animate-spin' : ''}`} />
             Refresh
           </button>
         </div>
       </div>
       
-      {summarizing && (
+      {summarizingCount > 0 && (
         <div className="bg-blue-50 text-blue-800 px-4 py-2 rounded-md mb-4 flex items-center">
           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          <span>Generating summaries in the background...</span>
+          <span>Generating summaries for {summarizingCount} articles in the background...</span>
         </div>
       )}
       
@@ -428,7 +517,6 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
           <NewsItem 
             key={item.id || index} 
             {...item} 
-            isSummarizing={!item.isSummarized}
           />
         ))}
       </div>
