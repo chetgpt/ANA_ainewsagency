@@ -103,6 +103,11 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
       const items = xmlDoc.querySelectorAll("item");
       const newParsedItems: CachedNewsItem[] = [];
       
+      // Get the current date for filtering
+      const now = new Date();
+      const oneMonthAgo = new Date(now);
+      oneMonthAgo.setMonth(now.getMonth() - 1); // Only show news from the last month
+      
       // Create an array from NodeList and sort it by pubDate (most recent first)
       const sortedItems = Array.from(items).sort((a, b) => {
         const dateA = new Date(a.querySelector("pubDate")?.textContent || "").getTime();
@@ -110,8 +115,24 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
         return dateB - dateA; // Most recent first
       });
       
-      // Only take the 10 most recent items
-      const recentItems = sortedItems.slice(0, 10);
+      // Filter for only recent items (from the last month) and take only the 10 most recent
+      const recentItems = sortedItems
+        .filter(item => {
+          const pubDateText = item.querySelector("pubDate")?.textContent || "";
+          const pubDate = new Date(pubDateText);
+          return !isNaN(pubDate.getTime()) && pubDate >= oneMonthAgo;
+        })
+        .slice(0, 10);
+      
+      if (recentItems.length === 0) {
+        // If no recent items found, just take the 10 most recent regardless of date
+        recentItems.push(...sortedItems.slice(0, 10));
+        
+        toast({
+          title: "Limited recent news",
+          description: "Showing the most recent news available, some may be older than expected.",
+        });
+      }
       
       recentItems.forEach((item) => {
         // Find image in media:content, enclosure, or description
