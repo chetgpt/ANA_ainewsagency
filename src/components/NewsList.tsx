@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import NewsItem, { NewsItemProps } from "./NewsItem";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { analyzeSentiment, extractKeywords, calculateReadingTime } from "@/utils/textAnalysis";
 import { useToast } from "@/hooks/use-toast";
 import { NewsSource, NEWS_SOURCES } from "./NewsSourceSelector";
@@ -61,6 +61,42 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
       setLastUpdated(new Date());
     } catch (err) {
       console.error("Error saving news to cache:", err);
+    }
+  };
+
+  // Clear all news cache from localStorage
+  const clearCache = () => {
+    try {
+      // Get all localStorage keys
+      const keys = Object.keys(localStorage);
+      
+      // Filter only news cache keys
+      const newsCacheKeys = keys.filter(key => key.startsWith('news-cache-'));
+      
+      // Remove each news cache item
+      newsCacheKeys.forEach(key => {
+        localStorage.removeItem(key);
+      });
+      
+      // Clear current news items and last updated
+      setNewsItems([]);
+      setLastUpdated(null);
+      
+      // Show success toast
+      toast({
+        title: "Cache cleared",
+        description: "All news cache has been cleared successfully.",
+      });
+      
+      // Fetch fresh news
+      fetchRssFeed(true);
+    } catch (err) {
+      console.error("Error clearing cache:", err);
+      toast({
+        title: "Error",
+        description: "Failed to clear cache. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -259,13 +295,22 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
             </span>
           )}
         </div>
-        <button
-          onClick={refreshNews}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
-        >
-          <Loader2 className="h-3 w-3 mr-1" />
-          Refresh
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={clearCache}
+            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm flex items-center"
+          >
+            <Trash2 className="h-3 w-3 mr-1" />
+            Clear Cache
+          </button>
+          <button
+            onClick={refreshNews}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
+          >
+            <Loader2 className="h-3 w-3 mr-1" />
+            Refresh
+          </button>
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-6">
         {newsItems.map((item, index) => (
