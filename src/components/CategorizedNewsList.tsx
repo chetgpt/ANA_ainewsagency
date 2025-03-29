@@ -1,12 +1,13 @@
 
 import { useState, useEffect } from "react";
 import { Loader2, FileText, Copy, Newspaper } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { generateNewsScript, analyzeSentiment, extractKeywords, calculateReadingTime, fetchArticleContent } from "@/utils/textAnalysis";
 import { Button } from "@/components/ui/button";
 import { checkApiAvailability } from "@/utils/llmService";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
 interface CategorizedNewsListProps {
   selectedCategory: string;
@@ -24,8 +25,11 @@ interface NewsScript {
     readingTimeSeconds: number;
     pubDate: string;
     sourceName: string;
+    link: string;
   }
 }
+
+const MAX_NEWS_ITEMS = 5; // Maximum number of news items to fetch and process
 
 const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => {
   const [loading, setLoading] = useState(true);
@@ -33,9 +37,15 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     geminiAvailable: boolean;
     perplexityAvailable: boolean;
   }>({ geminiAvailable: false, perplexityAvailable: false });
-  // Fixed: Correctly define the state with the type before the initial value
-  const [script, setScript] = useState<NewsScript | null>(null);
+  // Now we store an array of scripts instead of a single one
+  const [scripts, setScripts] = useState<NewsScript[]>([]);
+  const [currentPage, setCurrentPage] = useState(0);
   const { toast } = useToast();
+
+  // Calculate the total number of pages
+  const totalPages = Math.max(1, Math.ceil(scripts.length / 2));
+  // Get items for the current page (2 per page)
+  const currentScripts = scripts.slice(currentPage * 2, (currentPage + 1) * 2);
 
   useEffect(() => {
     const status = checkApiAvailability();
@@ -44,7 +54,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   }, []);
 
   useEffect(() => {
-    const fetchSingleNewsItem = async () => {
+    const fetchMultipleNewsItems = async () => {
       setLoading(true);
       
       try {
@@ -63,109 +73,98 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(data, "text/xml");
         
-        // Get all items from the feed for debugging
+        // Get all items from the feed
         const allItems = xmlDoc.querySelectorAll("item");
         console.log(`Found ${allItems.length} items in the RSS feed`);
         
-        // Get the first item from the feed
-        const firstItem = xmlDoc.querySelector("item");
+        // Process multiple items (limited to MAX_NEWS_ITEMS)
+        const itemsToProcess = Math.min(allItems.length, MAX_NEWS_ITEMS);
+        const newsScripts: NewsScript[] = [];
         
-        if (!firstItem) {
-          throw new Error("No items found in RSS feed");
+        for (let i = 0; i < itemsToProcess; i++) {
+          const item = allItems[i];
+          
+          // Extract the item data
+          const title = item.querySelector("title")?.textContent || "No title";
+          const description = item.querySelector("description")?.textContent || "";
+          const pubDate = item.querySelector("pubDate")?.textContent || new Date().toUTCString();
+          const link = item.querySelector("link")?.textContent || "#";
+          
+          console.log(`Processing news item ${i+1}:`, { 
+            title, 
+            description: description.substring(0, 50) + "...", 
+            pubDate 
+          });
+          
+          // Use description for analysis (simplified for multiple items)
+          const contentToAnalyze = description;
+          const combinedText = title + " " + contentToAnalyze;
+          
+          // Perform simple analysis
+          const sentiment = analyzeSentiment(combinedText);
+          const keywords = extractKeywords(combinedText, 3);
+          const readingTimeSeconds = calculateReadingTime(contentToAnalyze);
+          
+          // Create a news item object with the required information
+          const newsItem = {
+            title,
+            description,
+            fullContent: description, // Use description as full content to speed up processing
+            sentiment,
+            keywords,
+            readingTimeSeconds,
+            pubDate,
+            link,
+            sourceName: "ABC News",
+          };
+          
+          // Generate a script for the news item
+          const newsScript = await generateNewsScript(newsItem);
+          
+          const scriptData = {
+            title: newsItem.title,
+            content: newsScript,
+            type: 'single',
+            summary: {
+              description: newsItem.description,
+              sentiment: newsItem.sentiment,
+              keywords: newsItem.keywords,
+              readingTimeSeconds: newsItem.readingTimeSeconds,
+              pubDate: newsItem.pubDate,
+              sourceName: newsItem.sourceName,
+              link: newsItem.link
+            }
+          };
+          
+          newsScripts.push(scriptData);
         }
         
-        // Extract the item data
-        const title = firstItem.querySelector("title")?.textContent || "No title";
-        const description = firstItem.querySelector("description")?.textContent || "";
-        const pubDate = firstItem.querySelector("pubDate")?.textContent || new Date().toUTCString();
-        const link = firstItem.querySelector("link")?.textContent || "#";
-        
-        console.log("Extracted news item data:", { 
-          title, 
-          description: description.substring(0, 100) + "...", 
-          pubDate, 
-          link 
-        });
-        
-        // Fetch full article content
-        console.log("Fetching full article content from link:", link);
-        let articleContent = "";
-        try {
-          articleContent = await fetchArticleContent(link);
-          console.log("Fetched article content length:", articleContent.length);
-        } catch (err) {
-          console.error("Error fetching article content:", err);
-          articleContent = description; // Fallback to description
-        }
-        
-        // Use either full article content or description for analysis
-        const contentToAnalyze = articleContent || description;
-        const combinedText = title + " " + contentToAnalyze;
-        
-        // Perform simple analysis
-        const sentiment = analyzeSentiment(combinedText);
-        const keywords = extractKeywords(combinedText, 3);
-        const readingTimeSeconds = calculateReadingTime(contentToAnalyze);
-        
-        console.log("Analysis results:", { sentiment, keywords, readingTimeSeconds });
-        
-        // Create a news item object with the required information
-        const newsItem = {
-          title,
-          description,
-          fullContent: articleContent,
-          sentiment,
-          keywords,
-          readingTimeSeconds,
-          pubDate,
-          link,
-          sourceName: "ABC News",
-        };
-        
-        // Generate a script for the news item - now async function
-        const newsScript = await generateNewsScript(newsItem);
-        console.log("Generated script with length:", newsScript.length);
-        
-        const scriptData = {
-          title: newsItem.title,
-          content: newsScript,
-          type: 'single',
-          summary: {
-            description: newsItem.description,
-            sentiment: newsItem.sentiment,
-            keywords: newsItem.keywords,
-            readingTimeSeconds: newsItem.readingTimeSeconds,
-            pubDate: newsItem.pubDate,
-            sourceName: newsItem.sourceName
-          }
-        };
-        
-        setScript(scriptData);
+        setScripts(newsScripts);
         
         toast({
-          title: "News Summary Generated",
-          description: "A comprehensive news summary has been created using AI",
+          title: "News Summaries Generated",
+          description: `${newsScripts.length} news summaries have been created`,
         });
       } catch (error) {
         console.error("Error fetching news:", error);
         
         // Fallback to sample data if fetching fails
-        const sampleNewsItem = {
-          title: "Breaking news from ABC News",
-          description: "This is a sample news article from ABC News to demonstrate the functionality when the actual feed cannot be fetched.",
-          fullContent: "This is a sample news article from ABC News to demonstrate the functionality when the actual feed cannot be fetched. The content is shown here as a placeholder. In a real scenario, this would contain the full article text that would be analyzed and summarized.",
-          sentiment: "neutral" as const,
-          keywords: ["ABC News", "sample", "news"],
-          readingTimeSeconds: 120,
-          pubDate: new Date().toUTCString(),
-          link: "#",
-          sourceName: "ABC News",
-        };
+        const sampleNewsScripts: NewsScript[] = [];
         
-        // Generate script - now async function
-        const generateFallbackScript = async () => {
+        for (let i = 0; i < 3; i++) {
+          const sampleNewsItem = {
+            title: `Sample News ${i + 1} from ABC News`,
+            description: `This is sample news article ${i + 1} to demonstrate the functionality when the actual feed cannot be fetched.`,
+            fullContent: `This is sample news article ${i + 1} from ABC News to demonstrate the functionality when the actual feed cannot be fetched. The content is shown here as a placeholder.`,
+            sentiment: "neutral" as const,
+            keywords: ["ABC News", "sample", "news"],
+            readingTimeSeconds: 60 + i * 30,
+            pubDate: new Date().toUTCString(),
+            link: "#",
+            sourceName: "ABC News",
+          };
+          
           const newsScript = await generateNewsScript(sampleNewsItem);
-          console.log("Generated fallback script with sample data");
           
           const scriptData = {
             title: sampleNewsItem.title,
@@ -177,14 +176,15 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
               keywords: sampleNewsItem.keywords,
               readingTimeSeconds: sampleNewsItem.readingTimeSeconds,
               pubDate: sampleNewsItem.pubDate,
-              sourceName: sampleNewsItem.sourceName
+              sourceName: sampleNewsItem.sourceName,
+              link: sampleNewsItem.link
             }
           };
           
-          setScript(scriptData);
-        };
+          sampleNewsScripts.push(scriptData);
+        }
         
-        generateFallbackScript();
+        setScripts(sampleNewsScripts);
         
         toast({
           title: "Using Sample Data",
@@ -196,7 +196,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
       }
     };
     
-    fetchSingleNewsItem();
+    fetchMultipleNewsItems();
   }, [toast]);
 
   const formatReadingTime = (seconds: number) => {
@@ -205,11 +205,16 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
       : `${Math.floor(seconds / 60)}m read`;
   };
 
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-20">
         <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-        <span className="ml-2 text-gray-600">Generating news summary...</span>
+        <span className="ml-2 text-gray-600">Generating news summaries...</span>
       </div>
     );
   }
@@ -217,50 +222,119 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">News Summary</h2>
+        <h2 className="text-xl font-semibold">News Summaries</h2>
+        <div className="text-sm text-gray-500">
+          Showing {scripts.length} articles from ABC News
+        </div>
       </div>
       
-      {!script ? (
+      {scripts.length === 0 ? (
         <div className="flex justify-center items-center py-10">
           <Loader2 className="h-6 w-6 text-blue-600 animate-spin mr-2" />
-          <span className="text-gray-600">Generating news summary...</span>
+          <span className="text-gray-600">No news available at the moment</span>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 py-4">
-          <Card className="h-full hover:shadow-md transition-shadow duration-200">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                {script.title}
-              </CardTitle>
-              <div className="text-xs text-gray-500 mt-1">
-                {script.type === 'group' ? 'Multiple Related Articles' : 'Complete Summary'}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-gray-50 p-4 rounded-md border mb-4">
-                <div className="whitespace-pre-wrap text-sm">{script.content}</div>
-              </div>
-              <div className="flex justify-end">
-                <button 
-                  className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-md transition-colors"
-                  onClick={() => {
-                    if (script?.content) {
-                      navigator.clipboard.writeText(script.content);
-                      toast({
-                        title: "Copied to clipboard",
-                        description: "The news summary has been copied to your clipboard",
-                      });
-                    }
-                  }}
-                >
-                  <Copy className="h-4 w-4" />
-                  Copy summary
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-6 py-4">
+            {currentScripts.map((script, index) => (
+              <Card key={index} className="h-full hover:shadow-md transition-shadow duration-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg font-bold flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    {script.title}
+                  </CardTitle>
+                  <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                    <span>{new Date(script.summary?.pubDate || "").toLocaleDateString()}</span>
+                    {script.summary?.readingTimeSeconds && (
+                      <span>• {formatReadingTime(script.summary.readingTimeSeconds)}</span>
+                    )}
+                    {script.summary?.link && script.summary.link !== "#" && (
+                      <a 
+                        href={script.summary.link} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-blue-600 hover:underline ml-auto"
+                      >
+                        Read original
+                      </a>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-gray-50 p-4 rounded-md border mb-4">
+                    <div className="whitespace-pre-wrap text-sm">{script.content}</div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {script.summary?.keywords.map((keyword, idx) => (
+                      <Badge key={idx} variant="outline">{keyword}</Badge>
+                    ))}
+                    {script.summary?.sentiment && (
+                      <Badge 
+                        variant={
+                          script.summary.sentiment === "positive" ? "default" : 
+                          script.summary.sentiment === "negative" ? "destructive" : 
+                          "outline"
+                        }
+                      >
+                        {script.summary.sentiment}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex justify-end">
+                    <button 
+                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-md transition-colors"
+                      onClick={() => {
+                        if (script?.content) {
+                          navigator.clipboard.writeText(script.content);
+                          toast({
+                            title: "Copied to clipboard",
+                            description: "The news summary has been copied to your clipboard",
+                          });
+                        }
+                      }}
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copy summary
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          
+          {/* Pagination controls */}
+          {totalPages > 1 && (
+            <Pagination className="my-4">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => handlePageChange(Math.max(0, currentPage - 1))}
+                    className={currentPage === 0 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+                
+                {Array.from({ length: totalPages }).map((_, i) => (
+                  <PaginationItem key={i}>
+                    <PaginationLink 
+                      onClick={() => handlePageChange(i)}
+                      isActive={currentPage === i}
+                      className="cursor-pointer"
+                    >
+                      {i + 1}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => handlePageChange(Math.min(totalPages - 1, currentPage + 1))}
+                    className={currentPage === totalPages - 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
+        </>
       )}
     </div>
   );
