@@ -1,16 +1,10 @@
+
 import { useState, useEffect } from "react";
 import NewsHeader from "@/components/NewsHeader";
 import NewsList from "@/components/NewsList";
-import { Bug, Settings, Trash2 } from "lucide-react";
+import { Rss, Bug } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 const Index = () => {
   const [summarizingCount, setSummarizingCount] = useState(0);
@@ -35,14 +29,6 @@ const Index = () => {
     if (!showDebug) {
       console.log("Debug mode enabled - check console for detailed logs");
     }
-  };
-  
-  // Clear debug logs
-  const clearDebugLogs = () => {
-    console.clear();
-    setNetworkActivity([]);
-    setLastError(null);
-    console.log("Debug logs cleared");
   };
 
   // Monitor for network errors
@@ -105,51 +91,17 @@ const Index = () => {
       />
       <main className="container mx-auto px-4 py-4 flex-grow">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">Latest News Summary</h2>
+          <h2 className="text-2xl font-bold">Latest World News</h2>
           <div className="flex items-center space-x-4">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="flex items-center"
-                >
-                  <Settings className="h-4 w-4 mr-1" />
-                  Settings
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={toggleDebug} className="cursor-pointer">
-                  <Bug className="h-4 w-4 mr-2" />
-                  {showDebug ? "Hide Debug Panel" : "Show Debug Panel"}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={() => {
-                    const list = document.querySelector('div[class*="NewsList"]');
-                    if (list) {
-                      const clearCacheButton = list.querySelector('button:first-of-type');
-                      if (clearCacheButton && clearCacheButton instanceof HTMLElement) {
-                        clearCacheButton.click();
-                      }
-                    }
-                  }} 
-                  className="text-red-500 cursor-pointer"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Clear Cache
-                </DropdownMenuItem>
-                {showDebug && (
-                  <DropdownMenuItem 
-                    onClick={clearDebugLogs} 
-                    className="text-red-500 cursor-pointer"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Clear Debug Logs
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="text-sm text-gray-500">Showing news from the last 24 hours</div>
+            <button 
+              onClick={toggleDebug}
+              className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded flex items-center"
+              title="Show debug info"
+            >
+              <Bug className="h-3 w-3 mr-1" />
+              Debug
+            </button>
           </div>
         </div>
         
@@ -173,7 +125,7 @@ const Index = () => {
                       <span className={activity.status.includes('Error') ? 'text-red-500' : 'text-green-600'}>
                         {activity.status}
                       </span>: {activity.url.substring(0, 80)}...
-                        {activity.url.includes('cbsnews.com') && <strong className="text-blue-600"> (CBS Feed)</strong>}
+                      {activity.url.includes('cbsnews.com') && <strong className="text-blue-600"> (CBS Feed)</strong>}
                     </li>
                   ))}
                 </ul>
@@ -184,6 +136,20 @@ const Index = () => {
             
             <p>Current RSS Source: <strong>https://www.cbsnews.com/latest/rss/world</strong></p>
             <p>Check the browser console (F12) for detailed RSS fetch logs.</p>
+            
+            <Button
+              variant="destructive"
+              size="sm"
+              className="mt-2"
+              onClick={() => {
+                console.clear();
+                setNetworkActivity([]);
+                setLastError(null);
+                console.log("Debug logs cleared");
+              }}
+            >
+              Clear Logs
+            </Button>
           </div>
         )}
         
