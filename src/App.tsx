@@ -8,7 +8,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
-const App = () => {
+const App: React.FC = () => {
   // Create a new QueryClient instance inside the component
   // This ensures it's created in the React component lifecycle
   const [queryClient] = useState(() => new QueryClient());
