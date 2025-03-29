@@ -161,8 +161,9 @@ async function analyzeWithPerplexity(title: string, content: string, apiKey: str
           {
             role: 'system',
             content: `You are a news analysis assistant. Analyze the following news article.
+            Use the web search capability to find additional relevant information about this topic.
             Return a JSON object with the following fields:
-            - summary: A concise 2-3 sentence summary of the key information
+            - summary: A concise 2-3 sentence summary of the key information, including relevant context from web search
             - sentiment: Either "positive", "negative", or "neutral"
             - keywords: An array of 3-5 key terms from the article`
           },
@@ -173,6 +174,10 @@ async function analyzeWithPerplexity(title: string, content: string, apiKey: str
         ],
         temperature: 0.2,
         max_tokens: 1000,
+        // Enable web search for additional information
+        search_enabled: true,
+        search_domain_filter: ['*'],
+        search_recency_filter: 'month',
       }),
     });
 
@@ -323,13 +328,15 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
           {
             parts: [
               {
-                text: `You are a news summary assistant. Create a concise summary of the following news article.
+                text: `You are a news summary assistant. Create a comprehensive summary of the following news article.
                 Use casual, everyday language that's easy to understand for the average reader.
                 Avoid jargon, technical terms, and complex sentences.
                 Explain any complex concepts in simple terms as if you're explaining to a friend.
                 Keep it conversational and use a friendly tone.
                 Focus on the key facts, with no commentary or analysis.
+                If there's any missing context, make a note of it.
                 Keep it under 200 words and focus on the most important information.
+                Include relevant quotes when available.
                 
                 Title: ${title}
                 
@@ -379,13 +386,15 @@ async function generateScriptWithPerplexity(title: string, content: string, apiK
         messages: [
           {
             role: 'system',
-            content: `You are a news summary assistant. Create a concise summary of the following news article.
+            content: `You are a news summary assistant. Create a comprehensive summary of the following news article.
+            Use the web search capability to find additional relevant information about this topic to enrich your summary.
             Use casual, everyday language that's easy to understand for the average reader.
             Avoid jargon, technical terms, and complex sentences.
             Explain any complex concepts in simple terms as if you're explaining to a friend.
             Keep it conversational and use a friendly tone.
-            Focus on the key facts, with no commentary or analysis.
-            Keep it under 200 words and focus on the most important information.`
+            Include relevant context, background information, and the latest developments from the web search.
+            Keep it under 300 words and focus on the most important information.
+            Include relevant quotes or statistics when available.`
           },
           {
             role: 'user',
@@ -394,6 +403,10 @@ async function generateScriptWithPerplexity(title: string, content: string, apiK
         ],
         temperature: 0.2,
         max_tokens: 1000,
+        // Enable web search for additional information
+        search_enabled: true,
+        search_domain_filter: ['*'],
+        search_recency_filter: 'month',
       }),
     });
 
@@ -410,3 +423,4 @@ async function generateScriptWithPerplexity(title: string, content: string, apiK
     throw error; // Let the parent function handle the fallback
   }
 }
+
