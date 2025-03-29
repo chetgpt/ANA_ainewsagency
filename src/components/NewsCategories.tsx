@@ -1,15 +1,8 @@
-
 import { Button } from "@/components/ui/button";
-import { Briefcase, Film, Globe, Music, Newspaper, Trophy, Star, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 
+// Keep only the summarized category
 export const NEWS_CATEGORIES = [
-  { id: "all", name: "All News", icon: Newspaper },
-  { id: "world", name: "World", icon: Globe },
-  { id: "business", name: "Business", icon: Briefcase },
-  { id: "sports", name: "Sports", icon: Trophy },
-  { id: "entertainment", name: "Entertainment", icon: Star },
-  { id: "music", name: "Music", icon: Music },
-  { id: "movies", name: "Movies", icon: Film },
   { id: "summarized", name: "Summarized", icon: FileText }
 ];
 

@@ -1,24 +1,20 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import NewsHeader from "@/components/NewsHeader";
-import NewsCategories from "@/components/NewsCategories";
 import CategorizedNewsList from "@/components/CategorizedNewsList";
-import { NEWS_SOURCES } from "@/components/NewsSourceSelector";
 
 const Index = () => {
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  // Always use summarized as the category
+  const [selectedCategory, setSelectedCategory] = useState<string>("summarized");
+
+  // Set summarized category on component mount
+  useEffect(() => {
+    setSelectedCategory("summarized");
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <NewsHeader sourceName="NewsHub" sourceUrl="#" />
-      <div className="container mx-auto px-4 pt-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-          <NewsCategories 
-            selectedCategory={selectedCategory}
-            onCategoryChange={setSelectedCategory}
-          />
-        </div>
-      </div>
       <main className="container mx-auto px-4 py-4 flex-grow">
         <CategorizedNewsList 
           selectedCategory={selectedCategory}
