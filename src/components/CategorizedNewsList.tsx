@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { Loader2, FileText, Copy } from "lucide-react";
+import { Loader2, FileText, Copy, Newspaper } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { generateNewsScript, analyzeSentiment, extractKeywords, calculateReadingTime, fetchArticleContent, groupSimilarNews } from "@/utils/textAnalysis";
+import { Button } from "@/components/ui/button";
 import { checkApiAvailability } from "@/utils/llmService";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { NEWS_SOURCES } from "./NewsSourceSelector";
@@ -34,11 +35,6 @@ interface NewsScript {
 const MAX_NEWS_ITEMS_PER_SOURCE = 3; // Get 3 items from each source
 const MAX_TOTAL_NEWS_ITEMS = 20; // Max total items to process
 
-// Rate limiting variables
-const MAX_REQUESTS_PER_MINUTE = 13;
-let requestsInLastMinute = 0;
-let rateLimitResetTime = Date.now() + 60000; // Reset after one minute
-
 const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: CategorizedNewsListProps) => {
   const [loading, setLoading] = useState(true);
   const [apiStatus, setApiStatus] = useState<{
@@ -64,25 +60,6 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
   useEffect(() => {
     fetchAllNewsSources();
   }, [toast, refreshTrigger]);
-
-  // Function to check and update rate limit
-  const checkRateLimit = (): boolean => {
-    const now = Date.now();
-    
-    // Reset counter if a minute has passed
-    if (now > rateLimitResetTime) {
-      requestsInLastMinute = 0;
-      rateLimitResetTime = now + 60000;
-    }
-    
-    // Check if we're under the limit
-    if (requestsInLastMinute < MAX_REQUESTS_PER_MINUTE) {
-      requestsInLastMinute++;
-      return true; // Can proceed with request
-    }
-    
-    return false; // Rate limited
-  };
 
   // Fetch news from all sources
   const fetchAllNewsSources = async () => {
@@ -125,53 +102,6 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
       
       for (const item of groupedItems) {
         try {
-          // Check rate limit before making LLM API calls
-          if (!checkRateLimit()) {
-            toast({
-              title: "API Rate Limit Reached",
-              description: `Limited to ${MAX_REQUESTS_PER_MINUTE} LLM requests per minute. Some news items will be processed later.`,
-              variant: "warning"
-            });
-            
-            // Add a simple message for rate limited items
-            if (item.type === 'group') {
-              const limitedScript: NewsScript = {
-                title: `Combined: ${item.items[0].title}`,
-                content: "Rate limit reached. This news group will be processed when the rate limit resets.",
-                type: 'group',
-                summary: {
-                  description: "Rate limit reached for LLM API.",
-                  sentiment: "neutral",
-                  keywords: item.keywords || [],
-                  readingTimeSeconds: 0,
-                  pubDate: item.items[0].pubDate,
-                  sourceName: item.items.map((i: any) => i.sourceName).join(', '),
-                  link: item.items[0].link,
-                }
-              };
-              newsScripts.push(limitedScript);
-            } else {
-              const limitedScript: NewsScript = {
-                title: item.title,
-                content: "Rate limit reached. This news item will be processed when the rate limit resets.",
-                type: 'single',
-                summary: {
-                  description: "Rate limit reached for LLM API.",
-                  sentiment: "neutral",
-                  keywords: item.keywords || [],
-                  readingTimeSeconds: 0,
-                  pubDate: item.pubDate,
-                  sourceName: item.sourceName,
-                  link: item.link
-                }
-              };
-              newsScripts.push(limitedScript);
-            }
-            
-            // Break the loop after adding a rate limit message
-            break;
-          }
-          
           // Check if this is a group or individual item
           if (item.type === 'group') {
             // Handle group of similar news
@@ -378,6 +308,12 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
     }
   };
 
+  const formatReadingTime = (seconds: number) => {
+    return seconds < 60 
+      ? `${seconds}s read` 
+      : `${Math.floor(seconds / 60)}m read`;
+  };
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -429,6 +365,9 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
                   </CardTitle>
                   <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
                     <span>{new Date(script.summary?.pubDate || "").toLocaleDateString()}</span>
+                    {script.summary?.readingTimeSeconds && (
+                      <span>• {formatReadingTime(script.summary.readingTimeSeconds)}</span>
+                    )}
                     {script.summary?.link && script.summary.link !== "#" && (
                       <a 
                         href={script.summary.link} 
@@ -482,6 +421,17 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
                     {script.summary?.keywords.map((keyword, idx) => (
                       <Badge key={idx} variant="outline">{keyword}</Badge>
                     ))}
+                    {script.summary?.sentiment && (
+                      <Badge 
+                        variant={
+                          script.summary.sentiment === "positive" ? "default" : 
+                          script.summary.sentiment === "negative" ? "destructive" : 
+                          "outline"
+                        }
+                      >
+                        {script.summary.sentiment}
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex justify-end">
                     <button 

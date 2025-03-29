@@ -21,9 +21,18 @@ const NewsItem = ({
   pubDate, 
   link, 
   sourceName,
-  keywords
+  sentiment,
+  keywords,
+  readingTimeSeconds
 }: NewsItemProps) => {
   const formattedDate = formatDistanceToNow(new Date(pubDate), { addSuffix: true });
+  
+  // Define sentiment color
+  const sentimentColor = {
+    positive: "bg-green-100 text-green-800",
+    negative: "bg-red-100 text-red-800",
+    neutral: "bg-blue-100 text-blue-800"
+  }[sentiment];
   
   return (
     <Card className="h-full hover:shadow-md transition-shadow duration-200">
@@ -45,11 +54,21 @@ const NewsItem = ({
           <CardDescription className="line-clamp-3">{description}</CardDescription>
           
           <div className="mt-3 flex flex-wrap gap-1">
+            <Badge variant="outline" className={sentimentColor}>
+              {sentiment.charAt(0).toUpperCase() + sentiment.slice(1)} (Full)
+            </Badge>
+            
             {keywords.map((keyword, index) => (
               <Badge key={index} variant="outline" className="bg-gray-100">
                 {keyword}
               </Badge>
             ))}
+            
+            <Badge variant="outline" className="bg-gray-100 text-gray-800">
+              {readingTimeSeconds < 60 
+                ? `${readingTimeSeconds}s read` 
+                : `${Math.floor(readingTimeSeconds / 60)}m read`} (Full)
+            </Badge>
           </div>
         </CardContent>
         <CardFooter className="pt-0 text-xs text-gray-500">

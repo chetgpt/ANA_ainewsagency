@@ -1,4 +1,3 @@
-
 /**
  * Text analysis utilities for news content
  */
@@ -314,47 +313,35 @@ export async function generateNewsScript(newsItem: any): Promise<string> {
   // Handle grouped news items
   if (newsItem.type === 'group') {
     const items = newsItem.items;
+    const sentiment = newsItem.sentiment;
+    const keywords = newsItem.keywords;
     
-    // Combine all content from the group items
-    let combinedTitle = `Combined: ${items[0].title}`;
-    let combinedContent = `Combined news from ${items.length} related stories:\n\n`;
+    // Create intro based on sentiment
+    let intro = `A group of ${items.length} related stories with a ${sentiment} outlook. `;
     
-    // Add content from each item to create a unified corpus
+    if (keywords && keywords.length) {
+      intro += `The key themes include ${keywords.join(', ')}. `;
+    }
+    
+    // Create body from each news item
+    let body = `Summary of connected stories:\n\n`;
+    
     items.forEach((item: any, index: number) => {
-      combinedContent += `Story ${index + 1}: "${item.title}"\n`;
-      combinedContent += `${item.description || item.fullContent || ""}\n\n`;
+      body += `Story ${index + 1}: "${item.title}". `;
+      if (item.sourceName) {
+        body += `From ${item.sourceName}. `;
+      }
+      body += `\n`;
     });
     
-    // Use LLM to generate a unified summary
-    try {
-      return await generateScriptWithLLM(combinedTitle, combinedContent);
-    } catch (llmError) {
-      console.warn("LLM script generation failed for group, falling back to basic summary:", llmError);
-      
-      // Basic fallback summary
-      const sources = [...new Set(items.map((item: any) => item.sourceName))];
-      
-      let fallbackSummary = `${combinedTitle}\n\n`;
-      fallbackSummary += `This is a collection of ${items.length} related news stories `;
-      
-      if (sources.length > 0) {
-        fallbackSummary += `from ${sources.join(', ')}.\n\n`;
-      }
-      
-      // Add brief description from each story
-      items.forEach((item: any, index: number) => {
-        const brief = item.description?.substring(0, 100) || "";
-        fallbackSummary += `${index + 1}. ${item.title}: ${brief}...\n\n`;
-      });
-      
-      return fallbackSummary;
-    }
+    return `${intro}\n\n${body}`;
   } 
   // Handle single news item
   else {
     const title = newsItem.title;
     const fullContent = newsItem.fullContent || ""; 
     const description = newsItem.description;
+    const sourceName = newsItem.sourceName;
     
     // Try to use LLM for script generation first
     try {
@@ -378,6 +365,10 @@ export async function generateNewsScript(newsItem: any): Promise<string> {
       }
       
       let script = `${title}\n\n`;
+      
+      if (sourceName) {
+        script += `Source: ${sourceName}\n\n`;
+      }
       
       // Add the main content summary
       script += `${summary}\n\n`;
