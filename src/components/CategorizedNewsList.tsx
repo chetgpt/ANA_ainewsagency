@@ -2,8 +2,9 @@
 import { useState, useEffect } from "react";
 import NewsItem, { NewsItemProps } from "./NewsItem";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2 } from "lucide-react";
+import { Loader2, BarChart } from "lucide-react";
 import { NEWS_SOURCES } from "./NewsSourceSelector";
+import { analyzeSentiment } from "@/utils/textAnalysis";
 
 interface CategorizedNewsListProps {
   selectedCategory: string;
@@ -13,6 +14,11 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   const [newsItems, setNewsItems] = useState<(NewsItemProps & { category: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [analysisStats, setAnalysisStats] = useState({
+    positive: 0,
+    negative: 0,
+    neutral: 0
+  });
 
   useEffect(() => {
     const fetchAllRssFeeds = async () => {
@@ -73,6 +79,15 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         allItems.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
         
         setNewsItems(allItems);
+        
+        // Calculate sentiment distribution
+        const sentimentCounts = { positive: 0, negative: 0, neutral: 0 };
+        allItems.forEach(item => {
+          const sentiment = analyzeSentiment(item.title + " " + item.description);
+          sentimentCounts[sentiment]++;
+        });
+        setAnalysisStats(sentimentCounts);
+        
         setLoading(false);
         setError("");
       } catch (err) {
@@ -116,6 +131,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   };
 
   const displayItems = getDisplayItems();
+  const totalArticles = displayItems.length;
 
   if (loading) {
     return (
@@ -144,7 +160,19 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4">Summarized News</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-semibold">Summarized News</h2>
+        <div className="flex items-center gap-1 text-sm bg-gray-100 px-3 py-1 rounded-full">
+          <BarChart className="h-4 w-4 text-gray-600" />
+          <span>{totalArticles} Articles</span>
+          <span className="mx-1">•</span>
+          <span className="text-green-600">{analysisStats.positive} Positive</span>
+          <span className="mx-1">•</span>
+          <span className="text-red-600">{analysisStats.negative} Negative</span>
+          <span className="mx-1">•</span>
+          <span className="text-blue-600">{analysisStats.neutral} Neutral</span>
+        </div>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-4">
         {displayItems.map((item, index) => (
           <NewsItem key={index} {...item} sourceName={item.sourceName} />
