@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import NewsItem, { NewsItemProps } from "./NewsItem";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, RefreshCw } from "lucide-react";
 import { analyzeSentiment, extractKeywords, calculateReadingTime } from "@/utils/textAnalysis";
 import { useToast } from "@/hooks/use-toast";
 import { NewsSource, NEWS_SOURCES } from "./NewsSourceSelector";
@@ -103,6 +103,13 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
   // Force refresh news from the source
   const refreshNews = () => {
     setLoading(true);
+    // Clear cache before refreshing to ensure fresh data
+    const keys = Object.keys(localStorage);
+    const newsCacheKeys = keys.filter(key => key.startsWith('news-cache-'));
+    newsCacheKeys.forEach(key => {
+      localStorage.removeItem(key);
+    });
+    
     fetchRssFeed(true);
     toast({
       title: "Refreshing news",
@@ -125,7 +132,16 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
       
       // Use a CORS proxy to fetch the RSS feed
       const corsProxy = "https://api.allorigins.win/raw?url=";
-      const response = await fetch(`${corsProxy}${encodeURIComponent(activeFeedUrl)}`);
+      const response = await fetch(`${corsProxy}${encodeURIComponent(activeFeedUrl)}`, {
+        // Add cache-busting query parameter and no-cache headers
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+        // Add timestamp to URL to bypass browser cache
+        cache: 'no-store'
+      });
       
       if (!response.ok) {
         throw new Error(`Failed to fetch RSS feed: ${response.status}`);
@@ -141,8 +157,8 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
       
       // Get the current date for filtering
       const now = new Date();
-      const oneMonthAgo = new Date(now);
-      oneMonthAgo.setMonth(now.getMonth() - 1); // Only show news from the last month
+      const oneWeekAgo = new Date(now);
+      oneWeekAgo.setDate(now.getDate() - 7); // Only show news from the last week
       
       // Create an array from NodeList and sort it by pubDate (most recent first)
       const sortedItems = Array.from(items).sort((a, b) => {
@@ -151,22 +167,22 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
         return dateB - dateA; // Most recent first
       });
       
-      // Filter for only recent items (from the last month) and take only the 10 most recent
+      // Filter for only recent items (from the last week) and take only the 10 most recent
       const recentItems = sortedItems
         .filter(item => {
           const pubDateText = item.querySelector("pubDate")?.textContent || "";
           const pubDate = new Date(pubDateText);
-          return !isNaN(pubDate.getTime()) && pubDate >= oneMonthAgo;
+          return !isNaN(pubDate.getTime()) && pubDate >= oneWeekAgo;
         })
         .slice(0, 10);
       
       if (recentItems.length === 0) {
-        // If no recent items found, just take the 10 most recent regardless of date
-        recentItems.push(...sortedItems.slice(0, 10));
+        // If no recent items found, just take the 5 most recent regardless of date
+        recentItems.push(...sortedItems.slice(0, 5));
         
         toast({
           title: "Limited recent news",
-          description: "Showing the most recent news available, some may be older than expected.",
+          description: "Showing only the 5 most recent news articles available.",
         });
       }
       
@@ -197,38 +213,35 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
         // Generate a unique ID for this news item
         const id = generateNewsItemId(title, pubDate, link);
         
-        // Check if we already have this item in our current newsItems state
-        const existingItem = newsItems.find(item => item.id === id);
+        // Since we're always refreshing, we don't need to check for existing items
+        const combinedText = title + " " + description;
+        const sentiment = analyzeSentiment(combinedText);
+        const keywords = extractKeywords(combinedText, 3);
+        const readingTimeSeconds = calculateReadingTime(description);
         
-        if (existingItem && !forceRefresh) {
-          // We already have this item, reuse it
-          newParsedItems.push(existingItem);
-        } else {
-          // This is a new item or we're forcing refresh, analyze it
-          const combinedText = title + " " + description;
-          const sentiment = analyzeSentiment(combinedText);
-          const keywords = extractKeywords(combinedText, 3);
-          const readingTimeSeconds = calculateReadingTime(description);
-          
-          newParsedItems.push({
-            id,
-            title,
-            description,
-            pubDate,
-            link,
-            imageUrl: imageUrl || undefined,
-            sourceName: currentSource.name, // Add source name to each item
-            sentiment,
-            keywords,
-            readingTimeSeconds,
-            cached: false
-          });
-        }
+        newParsedItems.push({
+          id,
+          title,
+          description,
+          pubDate,
+          link,
+          imageUrl: imageUrl || undefined,
+          sourceName: currentSource.name,
+          sentiment,
+          keywords,
+          readingTimeSeconds,
+          cached: false
+        });
       });
       
-      // Update state and save to cache
+      // Update state
       setNewsItems(newParsedItems);
-      saveCachedNews(newParsedItems);
+      
+      // Only save to cache if not a forced refresh
+      if (!forceRefresh) {
+        saveCachedNews(newParsedItems);
+      }
+      
       setLoading(false);
       setError("");
       
@@ -254,10 +267,8 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
   };
 
   useEffect(() => {
-    // Always fetch fresh data on initial load or when source changes
-    fetchRssFeed();
-    
-    // If the fetch fails, the fetchRssFeed function will try to load from cache
+    // Force refresh on initial load or when source changes
+    refreshNews();
   }, [activeFeedUrl]); // This will trigger when either the feedUrl prop or currentSource changes
 
   if (loading) {
@@ -307,7 +318,7 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
             onClick={refreshNews}
             className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
           >
-            <Loader2 className="h-3 w-3 mr-1" />
+            <RefreshCw className="h-3 w-3 mr-1" />
             Refresh
           </button>
         </div>
