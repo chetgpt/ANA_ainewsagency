@@ -13,7 +13,7 @@ export function useCarouselNavigation({ scripts, onLoadMore }: UseCarouselNaviga
     loop: false,
     dragFree: false,
     containScroll: "keepSnaps",
-    draggable: true, // Explicitly enable dragging/swiping
+    // Remove the invalid 'draggable' property
     align: "center"
   });
   const [isLoading, setIsLoading] = useState(false);
