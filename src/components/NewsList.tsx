@@ -23,6 +23,12 @@ interface CachedNewsItem extends NewsItemProps {
   isSummarizing?: boolean; // Flag to indicate if this item is currently being summarized
 }
 
+// Define the shape of our cache
+interface NewsCache {
+  items: CachedNewsItem[];
+  timestamp: string;
+}
+
 const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
   const [currentSource, setCurrentSource] = useState<NewsSource>(
     NEWS_SOURCES[0] // Default to first source
@@ -58,26 +64,66 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
   };
 
   // Load cached news items from localStorage for the current feed
-  const loadCachedNews = () => {
+  const loadCachedNews = (): { items: CachedNewsItem[], timestamp: string } | null => {
     try {
+      console.log("Attempting to load cache for:", activeFeedUrl);
       const cachedData = localStorage.getItem(`news-cache-${activeFeedUrl}`);
       if (cachedData) {
-        const { items, timestamp } = JSON.parse(cachedData);
+        // Parse the cached data and validate it has the expected structure
+        const parsedData = JSON.parse(cachedData) as NewsCache;
+        
+        if (!parsedData || !Array.isArray(parsedData.items) || !parsedData.timestamp) {
+          console.warn("Invalid cache structure, clearing cache");
+          localStorage.removeItem(`news-cache-${activeFeedUrl}`);
+          return null;
+        }
+        
+        // Type guard to validate each item in the array
+        const isValidCachedItem = (item: any): item is CachedNewsItem => {
+          return (
+            typeof item === 'object' &&
+            item !== null &&
+            typeof item.id === 'string' &&
+            typeof item.title === 'string' &&
+            typeof item.description === 'string' &&
+            typeof item.pubDate === 'string' &&
+            typeof item.link === 'string' &&
+            typeof item.sentiment === 'string' &&
+            Array.isArray(item.keywords) &&
+            typeof item.readingTimeSeconds === 'number' &&
+            typeof item.isSummarized === 'boolean'
+          );
+        };
+        
+        // Filter out invalid items
+        const validItems = parsedData.items.filter(isValidCachedItem);
+        
+        if (validItems.length !== parsedData.items.length) {
+          console.warn(`Found ${parsedData.items.length - validItems.length} invalid items in cache`);
+        }
+        
         // Ensure loaded items have the necessary flags
-        const validatedItems = items.map((item: CachedNewsItem) => ({
+        const validatedItems = validItems.map((item: CachedNewsItem) => ({
           ...item,
           isSummarized: item.isSummarized || false,
           isSummarizing: false // Reset summarizing status on load
         }));
         
         setNewsItems(validatedItems);
-        setLastUpdated(new Date(timestamp));
+        const timestamp = new Date(parsedData.timestamp);
+        setLastUpdated(timestamp);
         setLoading(false);
+        
+        console.log(`Loaded ${validatedItems.length} items from cache, timestamp: ${timestamp.toLocaleString()}`);
+        
         toast({
           title: "Loaded from cache",
-          description: `Showing cached news from ${new Date(timestamp).toLocaleString()}`,
+          description: `Showing cached news from ${timestamp.toLocaleString()}`,
         });
-        return { items: validatedItems, timestamp }; // Return cache content
+        
+        return { items: validatedItems, timestamp: parsedData.timestamp };
+      } else {
+        console.log("No cache found for this feed URL");
       }
     } catch (err) {
       console.error("Error loading cached news:", err);
@@ -97,6 +143,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       };
       localStorage.setItem(`news-cache-${activeFeedUrl}`, JSON.stringify(cacheData));
       setLastUpdated(new Date());
+      console.log(`Saved ${itemsToSave.length} items to cache`);
     } catch (err) {
       console.error("Error saving news to cache:", err);
       // Handle potential storage quota errors
