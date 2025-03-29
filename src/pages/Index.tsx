@@ -1,11 +1,17 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import NewsHeader from "@/components/NewsHeader";
 import CategorizedNewsList from "@/components/CategorizedNewsList";
 
 const Index = () => {
-  const [selectedCategory] = useState<string>("summarized");
+  // Always use summarized as the category
+  const [selectedCategory, setSelectedCategory] = useState<string>("summarized");
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
+
+  // Set summarized category on component mount
+  useEffect(() => {
+    setSelectedCategory("summarized");
+  }, []);
 
   const handleClearCache = () => {
     // Increment refresh trigger to force re-fetch

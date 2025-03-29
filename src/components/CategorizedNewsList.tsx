@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Loader2, FileText, Copy, Newspaper } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -34,12 +34,9 @@ interface NewsScript {
 
 const MAX_NEWS_ITEMS_PER_SOURCE = 3; // Get 3 items from each source
 const MAX_TOTAL_NEWS_ITEMS = 20; // Max total items to process
-const NEWS_CACHE_KEY = "stored-news-summaries";
-const LAST_FETCH_KEY = "last-news-fetch-time";
 
 const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: CategorizedNewsListProps) => {
   const [loading, setLoading] = useState(true);
-  const [fetchingInBackground, setFetchingInBackground] = useState(false);
   const [apiStatus, setApiStatus] = useState<{
     geminiAvailable: boolean;
     perplexityAvailable: boolean;
@@ -60,58 +57,17 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
     console.log("API Status:", status);
   }, []);
 
-  // Load stored news summaries on initial load
   useEffect(() => {
-    loadStoredSummaries();
-    
-    // Check if we should fetch new summaries in the background
-    const lastFetchTime = localStorage.getItem(LAST_FETCH_KEY);
-    const now = new Date().getTime();
-    
-    // If it's been more than 30 minutes since last fetch or never fetched, fetch in background
-    if (!lastFetchTime || (now - parseInt(lastFetchTime)) > 30 * 60 * 1000) {
-      fetchInBackground();
-    }
-  }, [refreshTrigger]);
-
-  // Load stored summaries
-  const loadStoredSummaries = () => {
-    try {
-      const storedScripts = localStorage.getItem(NEWS_CACHE_KEY);
-      if (storedScripts) {
-        setScripts(JSON.parse(storedScripts));
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error("Error loading stored summaries:", error);
-      setLoading(false);
-    }
-  };
-
-  // Save summaries to storage
-  const saveScriptsToStorage = (newsScripts: NewsScript[]) => {
-    try {
-      localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify(newsScripts));
-      localStorage.setItem(LAST_FETCH_KEY, new Date().getTime().toString());
-    } catch (error) {
-      console.error("Error saving summaries to storage:", error);
-    }
-  };
-
-  // Fetch news in the background without showing loading indicator
-  const fetchInBackground = () => {
-    setFetchingInBackground(true);
-    fetchAllNewsSources(true)
-      .finally(() => {
-        setFetchingInBackground(false);
-      });
-  };
+    fetchAllNewsSources();
+  }, [toast, refreshTrigger]);
 
   // Fetch news from all sources
-  const fetchAllNewsSources = async (isBackgroundFetch = false) => {
-    if (!isBackgroundFetch) {
-      setLoading(true);
-    }
+  const fetchAllNewsSources = async () => {
+    setLoading(true);
+    toast({
+      title: "Fetching News",
+      description: "Getting the latest news from multiple sources...",
+    });
     
     try {
       // Array to store all news items from different sources
@@ -205,32 +161,24 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
         }
       }
       
-      // Save the scripts to local storage
-      saveScriptsToStorage(newsScripts);
+      setScripts(newsScripts);
       
-      // Update UI if not a background fetch
-      if (!isBackgroundFetch) {
-        setScripts(newsScripts);
-      }
-      
+      toast({
+        title: "News Summaries Generated",
+        description: `${newsScripts.length} latest news summaries have been created`,
+      });
     } catch (error) {
       console.error("Error fetching news:", error);
       
-      if (!isBackgroundFetch) {
-        // Only show error toast if not background fetch
-        toast({
-          title: "Error Fetching News",
-          description: "Couldn't fetch news from sources. Please try again later.",
-          variant: "destructive"
-        });
-      }
+      setScripts([]);
+      toast({
+        title: "Error Fetching News",
+        description: "Couldn't fetch news from sources. Please try again later.",
+        variant: "destructive"
+      });
     } finally {
-      if (!isBackgroundFetch) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
-    
-    return true;
   };
 
   // Helper function to fetch news from a single source
@@ -380,7 +328,7 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
     return (
       <div className="flex justify-center items-center py-20">
         <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-        <span className="ml-2 text-gray-600">Loading saved summaries...</span>
+        <span className="ml-2 text-gray-600">Generating news summaries...</span>
       </div>
     );
   }
@@ -393,17 +341,17 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
           <button
             onClick={refreshNews}
             className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
-            disabled={fetchingInBackground}
           >
-            <Loader2 className={`h-3 w-3 mr-1 ${fetchingInBackground ? "animate-spin" : ""}`} />
-            {fetchingInBackground ? "Fetching..." : "Get Latest"}
+            <Loader2 className="h-3 w-3 mr-1" />
+            Refresh Latest
           </button>
         </div>
       </div>
       
       {scripts.length === 0 ? (
         <div className="flex justify-center items-center py-10">
-          <span className="text-gray-600">No news available. Click "Get Latest" to fetch news.</span>
+          <Loader2 className="h-6 w-6 text-blue-600 animate-spin mr-2" />
+          <span className="text-gray-600">No news available at the moment</span>
         </div>
       ) : (
         <>
