@@ -96,7 +96,7 @@ export function calculateReadingTime(text: string): number {
   return Math.ceil(wordCount / wordsPerMinute * 60);
 }
 
-// New function to fetch and parse full article content
+// Function to fetch and parse full article content
 export async function fetchArticleContent(url: string): Promise<string> {
   try {
     // Use a CORS proxy to fetch the article
@@ -145,5 +145,41 @@ export async function fetchArticleContent(url: string): Promise<string> {
   } catch (error) {
     console.error("Error fetching article content:", error);
     return ""; // Return empty string on error
+  }
+}
+
+// Function to fully analyze an article
+export async function fullAnalyzeArticle(article: {
+  title: string;
+  description: string;
+  link: string;
+}): Promise<{
+  fullContent: string;
+  sentiment: "positive" | "negative" | "neutral";
+  keywords: string[];
+  readingTimeSeconds: number;
+}> {
+  try {
+    const fullContent = await fetchArticleContent(article.link);
+    
+    if (!fullContent) {
+      throw new Error("Could not retrieve article content");
+    }
+    
+    // Analyze the full content
+    const combinedText = article.title + " " + fullContent;
+    const sentiment = analyzeSentiment(combinedText);
+    const keywords = extractKeywords(combinedText, 3);
+    const readingTimeSeconds = calculateReadingTime(fullContent);
+    
+    return {
+      fullContent,
+      sentiment,
+      keywords,
+      readingTimeSeconds
+    };
+  } catch (error) {
+    console.error("Error in full article analysis:", error);
+    throw error;
   }
 }

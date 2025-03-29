@@ -1,17 +1,25 @@
+
 import { useState, useEffect } from "react";
 import NewsItem, { NewsItemProps } from "./NewsItem";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, BarChart } from "lucide-react";
 import { NEWS_SOURCES } from "./NewsSourceSelector";
-import { analyzeSentiment } from "@/utils/textAnalysis";
+import { analyzeSentiment, fullAnalyzeArticle } from "@/utils/textAnalysis";
 
 interface CategorizedNewsListProps {
   selectedCategory: string;
 }
 
+interface NewsItemFullProps extends NewsItemProps {
+  category: string;
+  isFullyAnalyzed: boolean;
+}
+
 const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => {
-  const [newsItems, setNewsItems] = useState<(NewsItemProps & { category: string })[]>([]);
+  const [rawNewsItems, setRawNewsItems] = useState<any[]>([]);
+  const [processedNewsItems, setProcessedNewsItems] = useState<NewsItemFullProps[]>([]);
   const [loading, setLoading] = useState(true);
+  const [analysisProgress, setAnalysisProgress] = useState({ total: 0, completed: 0 });
   const [error, setError] = useState("");
   const [analysisStats, setAnalysisStats] = useState({
     positive: 0,
@@ -19,6 +27,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     neutral: 0
   });
 
+  // Fetch all RSS feeds
   useEffect(() => {
     const fetchAllRssFeeds = async () => {
       try {
@@ -49,13 +58,20 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
               const link = item.querySelector("link")?.textContent || "#";
               const sourceName = source.name;
               
+              // Strip HTML from description
+              const descriptionText = description.replace(/<[^>]*>?/gm, '');
+              const truncatedDescription = descriptionText.length > 100
+                ? descriptionText.substring(0, 100) + "..."
+                : descriptionText;
+              
               const newsItem = {
                 title,
-                description,
+                description: truncatedDescription,
                 pubDate,
                 link,
                 sourceName,
-                category: "summarized" // Set all items to summarized category
+                category: "summarized",
+                isFullyAnalyzed: false
               };
               
               parsedItems.push(newsItem);
@@ -77,18 +93,9 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         // Sort by publication date (newest first)
         allItems.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
         
-        setNewsItems(allItems);
-        
-        // Calculate sentiment distribution
-        const sentimentCounts = { positive: 0, negative: 0, neutral: 0 };
-        allItems.forEach(item => {
-          const sentiment = analyzeSentiment(item.title + " " + item.description);
-          sentimentCounts[sentiment]++;
-        });
-        setAnalysisStats(sentimentCounts);
-        
+        setRawNewsItems(allItems);
+        setAnalysisProgress({ total: allItems.length, completed: 0 });
         setLoading(false);
-        setError("");
       } catch (err) {
         console.error("Error fetching RSS feeds:", err);
         setError("Failed to load news. Please try again later.");
@@ -99,38 +106,55 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     fetchAllRssFeeds();
   }, []);
 
-  /**
-   * Processes news items for display based on desired text length.
-   * Removes HTML tags from descriptions and truncates them.
-   */
-  const getDisplayItems = () => {
-    // Make sure newsItems is an array before processing
-    if (!Array.isArray(newsItems)) {
-      console.error("getDisplayItems: newsItems is not an array.");
-      return [];
-    }
+  // Process news items - analyze full content in the background
+  useEffect(() => {
+    if (rawNewsItems.length === 0 || loading) return;
 
-    // Create a list with HTML stripped from descriptions and truncated
-    return newsItems.map(item => {
-      // Ensure description exists and is a string before trying to replace
-      const descriptionText = (typeof item.description === 'string')
-        ? item.description.replace(/<[^>]*>?/gm, '') // Remove HTML tags
-        : ''; // Use empty string if description is missing or not a string
+    // Start with an empty array of processed items
+    const processedItems: NewsItemFullProps[] = [];
+    setProcessedNewsItems(processedItems);
+    
+    // Process each news item sequentially to avoid overloading
+    const processNewsItems = async () => {
+      const tempSentimentCounts = { positive: 0, negative: 0, neutral: 0 };
       
-      // Always truncate to 100 characters
-      const finalDescription = descriptionText.length > 100
-        ? descriptionText.substring(0, 100) + "..."
-        : descriptionText;
-      
-      return {
-        ...item,
-        description: finalDescription
-      };
-    });
-  };
-
-  const displayItems = getDisplayItems();
-  const totalArticles = displayItems.length;
+      for (let i = 0; i < rawNewsItems.length; i++) {
+        const item = rawNewsItems[i];
+        try {
+          // Full analysis
+          const analysis = await fullAnalyzeArticle({
+            title: item.title,
+            description: item.description,
+            link: item.link
+          });
+          
+          const fullyAnalyzedItem: NewsItemFullProps = {
+            ...item,
+            sentiment: analysis.sentiment,
+            keywords: analysis.keywords,
+            readingTimeSeconds: analysis.readingTimeSeconds,
+            isFullyAnalyzed: true
+          };
+          
+          // Update sentiment counts
+          tempSentimentCounts[analysis.sentiment]++;
+          
+          // Add to processed items
+          processedItems.push(fullyAnalyzedItem);
+          
+          // Update state
+          setProcessedNewsItems([...processedItems]);
+          setAnalysisProgress(prev => ({ ...prev, completed: prev.completed + 1 }));
+          setAnalysisStats({ ...tempSentimentCounts });
+        } catch (error) {
+          console.error(`Error analyzing article ${item.title}:`, error);
+          // Skip this item, don't add to processed items
+        }
+      }
+    };
+    
+    processNewsItems();
+  }, [rawNewsItems, loading]);
 
   if (loading) {
     return (
@@ -149,36 +173,68 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     );
   }
 
-  if (displayItems.length === 0) {
+  if (processedNewsItems.length === 0 && analysisProgress.completed === 0) {
     return (
-      <Alert className="my-4">
-        <AlertDescription>No news articles found.</AlertDescription>
-      </Alert>
+      <div className="flex flex-col items-center py-20">
+        <Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-4" />
+        <span className="text-gray-600">Analyzing full articles...</span>
+        <span className="text-sm text-gray-500 mt-2">
+          This may take a while. Full articles will appear as they are processed.
+        </span>
+      </div>
     );
   }
+
+  const totalProcessed = processedNewsItems.length;
+  const percentComplete = analysisProgress.total 
+    ? Math.round((analysisProgress.completed / analysisProgress.total) * 100) 
+    : 0;
 
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">Summarized News</h2>
+        <h2 className="text-xl font-semibold">Fully Analyzed News</h2>
         <div className="flex items-center gap-1 text-sm bg-gray-100 px-3 py-1 rounded-full">
           <BarChart className="h-4 w-4 text-gray-600" />
-          <span>{totalArticles} Articles</span>
+          <span>{totalProcessed} of {analysisProgress.total} Articles ({percentComplete}%)</span>
           <span className="mx-1">•</span>
           <span className="text-green-600">{analysisStats.positive} Positive</span>
           <span className="mx-1">•</span>
           <span className="text-red-600">{analysisStats.negative} Negative</span>
           <span className="mx-1">•</span>
           <span className="text-blue-600">{analysisStats.neutral} Neutral</span>
-          <span className="mx-1">•</span>
-          <span className="text-gray-600">Hover for full analysis</span>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-4">
-        {displayItems.map((item, index) => (
-          <NewsItem key={index} {...item} sourceName={item.sourceName} />
-        ))}
-      </div>
+      
+      {processedNewsItems.length === 0 ? (
+        <div className="flex justify-center items-center py-10">
+          <Loader2 className="h-6 w-6 text-blue-600 animate-spin mr-2" />
+          <span className="text-gray-600">Processing articles in the background...</span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-4">
+          {processedNewsItems.map((item, index) => (
+            <NewsItem 
+              key={index} 
+              title={item.title}
+              description={item.description}
+              pubDate={item.pubDate}
+              link={item.link}
+              sourceName={item.sourceName}
+              sentiment={item.sentiment}
+              keywords={item.keywords}
+              readingTimeSeconds={item.readingTimeSeconds}
+            />
+          ))}
+        </div>
+      )}
+      
+      {analysisProgress.completed < analysisProgress.total && (
+        <div className="flex justify-center mt-4 text-sm text-gray-500">
+          <Loader2 className="h-4 w-4 text-blue-600 animate-spin mr-2" />
+          Processing {analysisProgress.completed} of {analysisProgress.total} articles...
+        </div>
+      )}
     </div>
   );
 };
