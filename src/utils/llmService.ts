@@ -1,4 +1,3 @@
-
 /**
  * This file contains utilities for interacting with LLM APIs
  */
@@ -15,15 +14,16 @@ type LLMProvider = "perplexity" | "gemini";
 
 // Function to get API key from environment or localStorage
 function getApiKey(keyName: string): string | undefined {
-  // Try to get from environment first
-  let apiKey = import.meta.env[keyName];
+  // Try to get from environment first (for Vite, use import.meta.env)
+  const envKey = import.meta.env[keyName];
   
   // If not found in environment, try localStorage
-  if (!apiKey) {
-    apiKey = localStorage.getItem(keyName) || undefined;
-  }
+  const localKey = localStorage.getItem(keyName) || undefined;
+  
+  const apiKey = envKey || localKey;
   
   console.log(`Getting ${keyName}:`, apiKey ? `Found (length: ${apiKey.length})` : "Not found");
+  console.log(`Source: ${envKey ? "Environment variable" : localKey ? "LocalStorage" : "Not found"}`);
   
   return apiKey;
 }

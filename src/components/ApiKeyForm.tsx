@@ -15,11 +15,19 @@ const ApiKeyForm = () => {
 
   // Load saved keys on component mount
   useEffect(() => {
+    // First check environment variables
+    const envGeminiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
+    const envPerplexityKey = import.meta.env.VITE_LLM_API_KEY || "";
+    
+    console.log("Environment GEMINI_API_KEY:", envGeminiKey ? "Found (length: " + envGeminiKey.length + ")" : "Not found");
+    
+    // Then check localStorage as fallback
     const savedGeminiKey = localStorage.getItem("VITE_GEMINI_API_KEY") || "";
     const savedPerplexityKey = localStorage.getItem("VITE_LLM_API_KEY") || "";
     
-    setGeminiKey(savedGeminiKey);
-    setPerplexityKey(savedPerplexityKey);
+    // Use environment variable if available, otherwise use localStorage
+    setGeminiKey(envGeminiKey || savedGeminiKey);
+    setPerplexityKey(envPerplexityKey || savedPerplexityKey);
     
     // Check API availability
     const status = checkApiAvailability();
