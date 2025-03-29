@@ -29,6 +29,8 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         }
         
         const data = await response.text();
+        console.log("RSS data fetched:", data.substring(0, 200) + "..."); // Log a preview
+        
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(data, "text/xml");
         
@@ -39,17 +41,23 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
           throw new Error("No items found in RSS feed");
         }
         
+        console.log("First item found in RSS feed");
+        
         // Extract the item data
         const title = firstItem.querySelector("title")?.textContent || "No title";
         const description = firstItem.querySelector("description")?.textContent || "";
         const pubDate = firstItem.querySelector("pubDate")?.textContent || new Date().toUTCString();
         const link = firstItem.querySelector("link")?.textContent || "#";
         
+        console.log("Extracted data:", { title, description: description.substring(0, 50) + "..." });
+        
         // Perform simple analysis
         const combinedText = title + " " + description;
         const sentiment = analyzeSentiment(combinedText);
         const keywords = extractKeywords(combinedText, 3);
         const readingTimeSeconds = calculateReadingTime(description);
+        
+        console.log("Analysis results:", { sentiment, keywords, readingTimeSeconds });
         
         // Create a news item object with the required information
         const newsItem = {
@@ -65,6 +73,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         
         // Generate a script for the news item
         const newsScript = generateNewsScript(newsItem);
+        console.log("Generated script:", newsScript.substring(0, 100) + "...");
         
         const scriptData = {
           title: newsItem.title,
@@ -155,11 +164,13 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
               <button 
                 className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
                 onClick={() => {
-                  navigator.clipboard.writeText(script.content);
-                  toast({
-                    title: "Copied to clipboard",
-                    description: "The script has been copied to your clipboard",
-                  });
+                  if (script?.content) {
+                    navigator.clipboard.writeText(script.content);
+                    toast({
+                      title: "Copied to clipboard",
+                      description: "The script has been copied to your clipboard",
+                    });
+                  }
                 }}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-clipboard">
