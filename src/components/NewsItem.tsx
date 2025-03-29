@@ -2,6 +2,7 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { Loader2 } from "lucide-react";
 
 export interface NewsItemProps {
   title: string;
@@ -13,6 +14,11 @@ export interface NewsItemProps {
   sentiment: "positive" | "negative" | "neutral";
   keywords: string[];
   readingTimeSeconds: number;
+  summary?: string | null;
+  llmSentiment?: "positive" | "negative" | "neutral" | null;
+  llmKeywords?: string[];
+  isSummarized?: boolean;
+  isSummarizing?: boolean;
 }
 
 const NewsItem = ({ 
@@ -23,16 +29,29 @@ const NewsItem = ({
   sourceName,
   sentiment,
   keywords,
-  readingTimeSeconds
+  readingTimeSeconds,
+  summary,
+  llmSentiment,
+  llmKeywords,
+  isSummarized = true,
+  isSummarizing = false
 }: NewsItemProps) => {
   const formattedDate = formatDistanceToNow(new Date(pubDate), { addSuffix: true });
   
-  // Define sentiment color
+  // Define sentiment color - prefer LLM sentiment if available
+  const activeSentiment = llmSentiment || sentiment;
   const sentimentColor = {
     positive: "bg-green-100 text-green-800",
     negative: "bg-red-100 text-red-800",
     neutral: "bg-blue-100 text-blue-800"
-  }[sentiment];
+  }[activeSentiment];
+  
+  // Use LLM keywords if available, otherwise use basic keywords
+  const activeKeywords = (llmKeywords && llmKeywords.length > 0) ? llmKeywords : keywords;
+  
+  // Format display text
+  const sentimentLabel = activeSentiment.charAt(0).toUpperCase() + activeSentiment.slice(1);
+  const sentimentSource = llmSentiment ? "AI" : "Basic";
   
   return (
     <Card className="h-full hover:shadow-md transition-shadow duration-200">
@@ -51,14 +70,30 @@ const NewsItem = ({
           )}
         </CardHeader>
         <CardContent className="flex-grow pb-2">
-          <CardDescription className="line-clamp-3">{description}</CardDescription>
+          {isSummarizing ? (
+            <div className="flex items-center text-sm text-gray-500 mb-2">
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              <span>Generating enhanced summary...</span>
+            </div>
+          ) : null}
+          
+          {summary ? (
+            <div className="mb-3">
+              <div className="text-xs font-medium text-green-700 mb-1">AI Summary:</div>
+              <CardDescription className="line-clamp-3">{summary}</CardDescription>
+            </div>
+          ) : null}
+          
+          <CardDescription className={`line-clamp-3 ${summary ? 'text-xs text-gray-500' : ''}`}>
+            {description}
+          </CardDescription>
           
           <div className="mt-3 flex flex-wrap gap-1">
             <Badge variant="outline" className={sentimentColor}>
-              {sentiment.charAt(0).toUpperCase() + sentiment.slice(1)} (Full)
+              {sentimentLabel} ({sentimentSource})
             </Badge>
             
-            {keywords.map((keyword, index) => (
+            {activeKeywords.map((keyword, index) => (
               <Badge key={index} variant="outline" className="bg-gray-100">
                 {keyword}
               </Badge>
@@ -67,7 +102,7 @@ const NewsItem = ({
             <Badge variant="outline" className="bg-gray-100 text-gray-800">
               {readingTimeSeconds < 60 
                 ? `${readingTimeSeconds}s read` 
-                : `${Math.floor(readingTimeSeconds / 60)}m read`} (Full)
+                : `${Math.floor(readingTimeSeconds / 60)}m read`}
             </Badge>
           </div>
         </CardContent>
