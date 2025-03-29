@@ -1,6 +1,5 @@
 
 import { useState, useEffect } from "react";
-import { useToast } from "@/hooks/use-toast";
 import { checkApiAvailability } from "@/utils/llmService";
 import NewsLoadingState from "@/components/news/NewsLoadingState";
 import NewsCarousel from "@/components/news/NewsCarousel";
@@ -30,13 +29,48 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
       sourceName: string;
     }
   }>>([]);
-  const { toast } = useToast();
+  // Queue of pre-loaded news items ready to be displayed
+  const [preloadedNews, setPreloadedNews] = useState<Array<{
+    id: string;
+    title: string;
+    content: string;
+    type: string;
+    summary?: {
+      description: string;
+      sentiment: "positive" | "negative" | "neutral";
+      keywords: string[];
+      readingTimeSeconds: number;
+      pubDate: string;
+      sourceName: string;
+    }
+  }>>([]);
 
   useEffect(() => {
     const status = checkApiAvailability();
     setApiStatus(status);
     console.log("API Status:", status);
   }, []);
+
+  // Function to pre-fetch news articles
+  const preloadNextNews = async () => {
+    try {
+      console.log("Preloading next news article...");
+      
+      // Fetch and process the next news article
+      const article = await fetchNewsArticle();
+      const scriptData = await processNewsArticle(article);
+      
+      // Add the processed article to our queue
+      setPreloadedNews(prev => [...prev, {
+        id: crypto.randomUUID(),
+        ...scriptData
+      }]);
+      
+      console.log("News article preloaded successfully");
+    } catch (error) {
+      console.error("Error preloading news:", error);
+    }
+  };
 
   useEffect(() => {
     const fetchInitialNewsItem = async () => {
@@ -54,10 +88,8 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
           ...scriptData
         }]);
         
-        toast({
-          title: "News Summary Generated",
-          description: "A comprehensive news summary has been created using AI",
-        });
+        // Start preloading the next news article
+        preloadNextNews();
       } catch (error) {
         console.error("Error fetching news:", error);
         
@@ -74,11 +106,6 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
           }]);
         } catch (fallbackError) {
           console.error("Error with fallback data:", fallbackError);
-          toast({
-            title: "Error Loading News",
-            description: "Could not generate news summary. Please try again later.",
-            variant: "destructive"
-          });
         }
       } finally {
         setLoading(false);
@@ -86,39 +113,42 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     };
     
     fetchInitialNewsItem();
-  }, [toast]);
+  }, []);
 
   const loadNextNews = async () => {
-    try {
-      // Show loading state for the next item
-      toast({
-        title: "Loading next news...",
-        description: "Please wait while we fetch the next article",
-      });
+    // If we have preloaded news, use it
+    if (preloadedNews.length > 0) {
+      // Get the first preloaded news item
+      const nextNews = preloadedNews[0];
       
-      // Fetch next news article
-      const article = await fetchNewsArticle();
+      // Remove it from the preloaded queue
+      setPreloadedNews(prev => prev.slice(1));
       
-      // Process the article
-      const scriptData = await processNewsArticle(article);
+      // Add it to the displayed scripts
+      setScripts(prev => [...prev, nextNews]);
       
-      // Add the new script to our collection
-      setScripts(prev => [...prev, {
-        id: crypto.randomUUID(),
-        ...scriptData
-      }]);
-      
-      toast({
-        title: "New Article Loaded",
-        description: "Swipe to view the new article",
-      });
-    } catch (error) {
-      console.error("Error loading next news:", error);
-      toast({
-        title: "Error Loading Next Article",
-        description: "Could not load the next article. Please try again.",
-        variant: "destructive"
-      });
+      // Preload another news item for future use
+      preloadNextNews();
+    } else {
+      // If no preloaded news is available, fetch it on demand
+      try {
+        // Fetch next news article
+        const article = await fetchNewsArticle();
+        
+        // Process the article
+        const scriptData = await processNewsArticle(article);
+        
+        // Add the new script to our collection
+        setScripts(prev => [...prev, {
+          id: crypto.randomUUID(),
+          ...scriptData
+        }]);
+        
+        // Start preloading the next news article
+        preloadNextNews();
+      } catch (error) {
+        console.error("Error loading next news:", error);
+      }
     }
   };
 

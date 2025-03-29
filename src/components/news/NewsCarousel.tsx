@@ -32,11 +32,14 @@ interface NewsCarouselProps {
 const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [emblaRef, emblaApi] = useEmblaCarousel();
+  const [isLoading, setIsLoading] = useState(false);
   
   // Function to handle when the user reaches the end of available content
-  const handleReachEnd = (index: number) => {
-    if (index === scripts.length - 1) {
-      onLoadMore();
+  const handleReachEnd = async (index: number) => {
+    if (index === scripts.length - 1 && !isLoading) {
+      setIsLoading(true);
+      await onLoadMore();
+      setIsLoading(false);
     }
   };
 
@@ -64,7 +67,6 @@ const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
         <div className="flex items-center justify-center mb-4">
           <span className="text-sm text-gray-500">
             {currentIndex + 1} / {scripts.length}
-            {currentIndex === scripts.length - 1 && " (Loading more...)"}
           </span>
         </div>
         
@@ -77,7 +79,7 @@ const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
             </CarouselItem>
           ))}
           
-          {scripts.length === currentIndex + 1 && (
+          {isLoading && (
             <CarouselItem className="flex flex-col justify-center items-center">
               <div className="flex flex-col items-center justify-center h-72 w-full bg-gray-50 rounded-lg border border-dashed border-gray-300 p-8">
                 <div className="animate-pulse">

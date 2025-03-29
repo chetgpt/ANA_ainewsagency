@@ -1,4 +1,3 @@
-
 import { 
   analyzeSentiment, 
   extractKeywords, 
@@ -6,9 +5,25 @@ import {
   fetchArticleContent,
   generateNewsScript 
 } from "@/utils/textAnalysis";
-import { useToast } from "@/hooks/use-toast";
+
+// Store a queue of unprocessed news items
+let newsQueue: Array<{
+  title: string;
+  description: string;
+  pubDate: string;
+  link: string;
+}> = [];
+
+// Track the items we've already processed to avoid duplicates
+const processedArticleLinks = new Set<string>();
 
 export async function fetchNewsArticle() {
+  // If we have items in the queue, return the next one
+  if (newsQueue.length > 0) {
+    return newsQueue.shift()!;
+  }
+  
+  // Otherwise, fetch fresh items from the RSS feed
   // Use ABC News RSS feed with a CORS proxy
   const corsProxy = "https://api.allorigins.win/raw?url=";
   const rssUrl = "https://abcnews.go.com/abcnews/topstories";
@@ -25,31 +40,31 @@ export async function fetchNewsArticle() {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(data, "text/xml");
   
-  // Get all items from the feed for debugging
+  // Get all items from the feed
   const allItems = xmlDoc.querySelectorAll("item");
   console.log(`Found ${allItems.length} items in the RSS feed`);
   
-  // Get the first item from the feed
-  const firstItem = xmlDoc.querySelector("item");
-  
-  if (!firstItem) {
-    throw new Error("No items found in RSS feed");
-  }
-  
-  // Extract the item data
-  const title = firstItem.querySelector("title")?.textContent || "No title";
-  const description = firstItem.querySelector("description")?.textContent || "";
-  const pubDate = firstItem.querySelector("pubDate")?.textContent || new Date().toUTCString();
-  const link = firstItem.querySelector("link")?.textContent || "#";
-  
-  console.log("Extracted news item data:", { 
-    title, 
-    description: description.substring(0, 100) + "...", 
-    pubDate, 
-    link 
+  // Process items and add to queue (skip already processed ones)
+  allItems.forEach((item) => {
+    const title = item.querySelector("title")?.textContent || "No title";
+    const description = item.querySelector("description")?.textContent || "";
+    const pubDate = item.querySelector("pubDate")?.textContent || new Date().toUTCString();
+    const link = item.querySelector("link")?.textContent || "#";
+    
+    // Skip if we've already processed this article
+    if (!processedArticleLinks.has(link)) {
+      processedArticleLinks.add(link);
+      newsQueue.push({ title, description, pubDate, link });
+    }
   });
   
-  return { title, description, pubDate, link };
+  // If queue is empty after processing (all items were duplicates), throw error
+  if (newsQueue.length === 0) {
+    throw new Error("No new items found in RSS feed");
+  }
+  
+  // Return the first item from the queue
+  return newsQueue.shift()!;
 }
 
 export async function processNewsArticle(article: { 
