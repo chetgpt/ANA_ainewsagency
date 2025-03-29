@@ -1,4 +1,3 @@
-
 /**
  * This file contains utilities for interacting with LLM APIs
  */
@@ -77,7 +76,7 @@ export async function analyzeLLM(title: string, content: string): Promise<LLMRes
 // Function to analyze content with Gemini
 async function analyzeWithGemini(title: string, content: string, apiKey: string): Promise<LLMResponse> {
   try {
-    // Updated to use gemini-2.0-flash model
+    // Updated to use gemini-2.0-flash model with web search capability
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
@@ -89,8 +88,9 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
             parts: [
               {
                 text: `You are a news analysis assistant. Analyze the following news article.
+                Use web search to find additional relevant information about this topic.
                 Return a JSON object with the following fields:
-                - summary: A concise 2-3 sentence summary of the key information
+                - summary: A concise 2-3 sentence summary of the key information, including relevant context from web search
                 - sentiment: Either "positive", "negative", or "neutral"
                 - keywords: An array of 3-5 key terms from the article
                 
@@ -107,6 +107,16 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
           temperature: 0.2,
           maxOutputTokens: 1000,
         },
+        tools: [
+          {
+            googleSearchRetrieval: {}
+          }
+        ],
+        toolConfig: {
+          toolUseSettings: {
+            useTools: true
+          }
+        }
       }),
     });
 
@@ -317,7 +327,7 @@ export async function generateScriptWithLLM(title: string, content: string): Pro
 // Function to generate script with Gemini
 async function generateScriptWithGemini(title: string, content: string, apiKey: string): Promise<string> {
   try {
-    // Updated Gemini API endpoint to use the latest version
+    // Updated Gemini API endpoint to use the latest version with web search capability
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
@@ -329,13 +339,14 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
             parts: [
               {
                 text: `You are a news summary assistant. Create a comprehensive summary of the following news article.
+                Use web search to find additional relevant information about this topic to provide context.
                 Use casual, everyday language that's easy to understand for the average reader.
                 Avoid jargon, technical terms, and complex sentences.
                 Explain any complex concepts in simple terms as if you're explaining to a friend.
                 Keep it conversational and use a friendly tone.
                 Focus on the key facts, with no commentary or analysis.
-                If there's any missing context, make a note of it.
-                Keep it under 200 words and focus on the most important information.
+                If there's any missing context, use web search to find and include it.
+                Keep it under 300 words and focus on the most important information.
                 Include relevant quotes when available.
                 
                 Title: ${title}
@@ -349,6 +360,16 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
           temperature: 0.2,
           maxOutputTokens: 1000,
         },
+        tools: [
+          {
+            googleSearchRetrieval: {}
+          }
+        ],
+        toolConfig: {
+          toolUseSettings: {
+            useTools: true
+          }
+        }
       }),
     });
 
@@ -423,4 +444,3 @@ async function generateScriptWithPerplexity(title: string, content: string, apiK
     throw error; // Let the parent function handle the fallback
   }
 }
-
