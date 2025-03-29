@@ -3,7 +3,7 @@ import { Loader2, FileText, Copy, Newspaper } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { generateNewsScript, analyzeSentiment, extractKeywords, calculateReadingTime, fetchArticleContent, groupSimilarNews } from "@/utils/textAnalysis";
+import { generateNewsScript, analyzeSentiment, extractKeywords, calculateReadingTime, fetchArticleContent } from "@/utils/textAnalysis";
 import { Button } from "@/components/ui/button";
 import { checkApiAvailability } from "@/utils/llmService";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
@@ -18,7 +18,6 @@ interface CategorizedNewsListProps {
 interface NewsScript {
   title: string;
   content: string;
-  type: string;
   summary?: {
     description: string;
     sentiment: "positive" | "negative" | "neutral";
@@ -94,68 +93,35 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
       // Limit to max total items
       allNewsItems = allNewsItems.slice(0, MAX_TOTAL_NEWS_ITEMS);
       
-      // Group similar news items using LLM
-      const groupedItems = groupSimilarNews(allNewsItems);
-      
-      // Process grouped items into scripts
+      // Process news items into scripts
       const newsScripts: NewsScript[] = [];
       
-      for (const item of groupedItems) {
+      for (const item of allNewsItems) {
         try {
-          // Check if this is a group or individual item
-          if (item.type === 'group') {
-            // Handle group of similar news
-            const groupScript = await generateNewsScript(item);
-            
-            const scriptData: NewsScript = {
-              title: `Combined: ${item.items[0].title}`,
-              content: groupScript,
-              type: 'group',
-              summary: {
-                description: groupScript.substring(0, 150) + "...",
-                sentiment: item.sentiment,
-                keywords: item.keywords,
-                readingTimeSeconds: item.readingTimeSeconds,
-                pubDate: item.items[0].pubDate,
-                sourceName: item.items.map((i: any) => i.sourceName).join(', '),
-                link: item.items[0].link,
-              }
-            };
-            
-            // Add first item's media if available
-            if (item.items[0].mediaUrl) {
-              scriptData.summary!.mediaUrl = item.items[0].mediaUrl;
-              scriptData.summary!.mediaType = item.items[0].mediaType;
+          // Generate script for individual news item
+          const newsScript = await generateNewsScript(item);
+          
+          const scriptData: NewsScript = {
+            title: item.title,
+            content: newsScript,
+            summary: {
+              description: item.description,
+              sentiment: item.sentiment,
+              keywords: item.keywords,
+              readingTimeSeconds: item.readingTimeSeconds,
+              pubDate: item.pubDate,
+              sourceName: item.sourceName,
+              link: item.link
             }
-            
-            newsScripts.push(scriptData);
-          } else {
-            // Handle individual news item
-            const newsScript = await generateNewsScript(item);
-            
-            const scriptData: NewsScript = {
-              title: item.title,
-              content: newsScript,
-              type: 'single',
-              summary: {
-                description: item.description,
-                sentiment: item.sentiment,
-                keywords: item.keywords,
-                readingTimeSeconds: item.readingTimeSeconds,
-                pubDate: item.pubDate,
-                sourceName: item.sourceName,
-                link: item.link
-              }
-            };
-            
-            // Add media if available
-            if (item.mediaUrl) {
-              scriptData.summary!.mediaUrl = item.mediaUrl;
-              scriptData.summary!.mediaType = item.mediaType;
-            }
-            
-            newsScripts.push(scriptData);
+          };
+          
+          // Add media if available
+          if (item.mediaUrl) {
+            scriptData.summary!.mediaUrl = item.mediaUrl;
+            scriptData.summary!.mediaType = item.mediaType;
           }
+          
+          newsScripts.push(scriptData);
         } catch (error) {
           console.error("Error processing news item:", error);
         }
