@@ -465,15 +465,15 @@ async function identifyMediaWithGemini(title: string, content: string, apiKey: s
     }
 
     const data = await response.json();
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
-    if (!content) {
+    if (!responseContent) {
       throw new Error("Unexpected response format from Gemini API");
     }
     
     try {
       // Parse the JSON from the content
-      const result = JSON.parse(content);
+      const result = JSON.parse(responseContent);
       return {
         hasImage: Boolean(result.hasImage),
         hasVideo: Boolean(result.hasVideo),
