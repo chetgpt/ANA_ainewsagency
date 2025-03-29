@@ -1,3 +1,4 @@
+
 /**
  * This file contains utilities for interacting with LLM APIs
  */
@@ -76,7 +77,7 @@ export async function analyzeLLM(title: string, content: string): Promise<LLMRes
 // Function to analyze content with Gemini
 async function analyzeWithGemini(title: string, content: string, apiKey: string): Promise<LLMResponse> {
   try {
-    // Updated to use gemini-2.0-flash model with web search capability
+    // Updated to use gemini-2.0-flash model
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
@@ -88,9 +89,8 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
             parts: [
               {
                 text: `You are a news analysis assistant. Analyze the following news article.
-                Use web search to find additional relevant information about this topic.
                 Return a JSON object with the following fields:
-                - summary: A concise 2-3 sentence summary of the key information, including relevant context from web search
+                - summary: A concise 2-3 sentence summary of the key information
                 - sentiment: Either "positive", "negative", or "neutral"
                 - keywords: An array of 3-5 key terms from the article
                 
@@ -107,16 +107,6 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
           temperature: 0.2,
           maxOutputTokens: 1000,
         },
-        tools: [
-          {
-            googleSearchRetrieval: {}
-          }
-        ],
-        toolConfig: {
-          toolUseSettings: {
-            useTools: true
-          }
-        }
       }),
     });
 
@@ -171,9 +161,8 @@ async function analyzeWithPerplexity(title: string, content: string, apiKey: str
           {
             role: 'system',
             content: `You are a news analysis assistant. Analyze the following news article.
-            Use the web search capability to find additional relevant information about this topic.
             Return a JSON object with the following fields:
-            - summary: A concise 2-3 sentence summary of the key information, including relevant context from web search
+            - summary: A concise 2-3 sentence summary of the key information
             - sentiment: Either "positive", "negative", or "neutral"
             - keywords: An array of 3-5 key terms from the article`
           },
@@ -184,10 +173,6 @@ async function analyzeWithPerplexity(title: string, content: string, apiKey: str
         ],
         temperature: 0.2,
         max_tokens: 1000,
-        // Enable web search for additional information
-        search_enabled: true,
-        search_domain_filter: ['*'],
-        search_recency_filter: 'month',
       }),
     });
 
@@ -327,7 +312,7 @@ export async function generateScriptWithLLM(title: string, content: string): Pro
 // Function to generate script with Gemini
 async function generateScriptWithGemini(title: string, content: string, apiKey: string): Promise<string> {
   try {
-    // Updated Gemini API endpoint to use the latest version with web search capability
+    // Updated Gemini API endpoint to use the latest version
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
@@ -338,16 +323,13 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
           {
             parts: [
               {
-                text: `You are a news summary assistant. Create a comprehensive summary of the following news article.
-                Use web search to find additional relevant information about this topic to provide context.
+                text: `You are a news summary assistant. Create a concise summary of the following news article.
                 Use casual, everyday language that's easy to understand for the average reader.
                 Avoid jargon, technical terms, and complex sentences.
                 Explain any complex concepts in simple terms as if you're explaining to a friend.
                 Keep it conversational and use a friendly tone.
                 Focus on the key facts, with no commentary or analysis.
-                If there's any missing context, use web search to find and include it.
-                Keep it under 300 words and focus on the most important information.
-                Include relevant quotes when available.
+                Keep it under 200 words and focus on the most important information.
                 
                 Title: ${title}
                 
@@ -360,16 +342,6 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
           temperature: 0.2,
           maxOutputTokens: 1000,
         },
-        tools: [
-          {
-            googleSearchRetrieval: {}
-          }
-        ],
-        toolConfig: {
-          toolUseSettings: {
-            useTools: true
-          }
-        }
       }),
     });
 
@@ -407,15 +379,13 @@ async function generateScriptWithPerplexity(title: string, content: string, apiK
         messages: [
           {
             role: 'system',
-            content: `You are a news summary assistant. Create a comprehensive summary of the following news article.
-            Use the web search capability to find additional relevant information about this topic to enrich your summary.
+            content: `You are a news summary assistant. Create a concise summary of the following news article.
             Use casual, everyday language that's easy to understand for the average reader.
             Avoid jargon, technical terms, and complex sentences.
             Explain any complex concepts in simple terms as if you're explaining to a friend.
             Keep it conversational and use a friendly tone.
-            Include relevant context, background information, and the latest developments from the web search.
-            Keep it under 300 words and focus on the most important information.
-            Include relevant quotes or statistics when available.`
+            Focus on the key facts, with no commentary or analysis.
+            Keep it under 200 words and focus on the most important information.`
           },
           {
             role: 'user',
@@ -424,10 +394,6 @@ async function generateScriptWithPerplexity(title: string, content: string, apiK
         ],
         temperature: 0.2,
         max_tokens: 1000,
-        // Enable web search for additional information
-        search_enabled: true,
-        search_domain_filter: ['*'],
-        search_recency_filter: 'month',
       }),
     });
 

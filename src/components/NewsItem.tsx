@@ -55,11 +55,7 @@ const NewsItem = ({
           
           <div className="mt-3 flex flex-wrap gap-1">
             <Badge variant="outline" className={sentimentColor}>
-              {sentiment.charAt(0).toUpperCase() + sentiment.slice(1)}
-            </Badge>
-            
-            <Badge variant="outline" className="bg-purple-100 text-purple-800">
-              Web-enriched
+              {sentiment.charAt(0).toUpperCase() + sentiment.slice(1)} (Full)
             </Badge>
             
             {keywords.map((keyword, index) => (
@@ -71,7 +67,7 @@ const NewsItem = ({
             <Badge variant="outline" className="bg-gray-100 text-gray-800">
               {readingTimeSeconds < 60 
                 ? `${readingTimeSeconds}s read` 
-                : `${Math.floor(readingTimeSeconds / 60)}m read`}
+                : `${Math.floor(readingTimeSeconds / 60)}m read`} (Full)
             </Badge>
           </div>
         </CardContent>
