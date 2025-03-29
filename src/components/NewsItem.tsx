@@ -88,11 +88,11 @@ const NewsItem = ({
               <div className="text-xs font-medium text-green-700 mb-1">AI Summary:</div>
               <CardDescription className="line-clamp-3">{summary}</CardDescription>
             </div>
-          ) : null}
-          
-          <CardDescription className={`line-clamp-3 ${summary ? 'text-xs text-gray-500' : ''}`}>
-            {description}
-          </CardDescription>
+          ) : (
+            <div className="mb-3">
+              <div className="text-xs font-medium text-gray-700 mb-1">No summary available yet</div>
+            </div>
+          )}
           
           <div className="mt-3 flex flex-wrap gap-1">
             <Badge variant="outline" className={sentimentColor}>

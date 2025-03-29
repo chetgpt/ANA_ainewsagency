@@ -105,7 +105,7 @@ const Index = () => {
       />
       <main className="container mx-auto px-4 py-4 flex-grow">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">Latest World News</h2>
+          <h2 className="text-2xl font-bold">Latest News Summary</h2>
           <div className="flex items-center space-x-4">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
