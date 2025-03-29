@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   Carousel,
   CarouselContent,
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/carousel";
 import NewsScriptCard from "@/components/news/NewsScriptCard";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import useEmblaCarousel from "embla-carousel-react";
 
 interface NewsCarouselProps {
   scripts: Array<{
@@ -30,6 +31,7 @@ interface NewsCarouselProps {
 
 const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [emblaRef, emblaApi] = useEmblaCarousel();
   
   // Function to handle when the user reaches the end of available content
   const handleReachEnd = (index: number) => {
@@ -38,15 +40,27 @@ const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
     }
   };
 
+  // Set up event listener for slide changes
+  useEffect(() => {
+    if (!emblaApi) return;
+
+    const onSelect = () => {
+      const currentIndex = emblaApi.selectedScrollSnap();
+      setCurrentIndex(currentIndex);
+      handleReachEnd(currentIndex);
+    };
+
+    emblaApi.on("select", onSelect);
+    
+    // Cleanup
+    return () => {
+      emblaApi.off("select", onSelect);
+    };
+  }, [emblaApi, scripts.length, onLoadMore]);
+
   return (
     <div className="relative">
-      <Carousel
-        className="w-full"
-        onSelect={(index: number) => {
-          setCurrentIndex(index);
-          handleReachEnd(index);
-        }}
-      >
+      <Carousel className="w-full">
         <div className="flex items-center justify-center mb-4">
           <span className="text-sm text-gray-500">
             {currentIndex + 1} / {scripts.length}
@@ -54,7 +68,7 @@ const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
           </span>
         </div>
         
-        <CarouselContent>
+        <CarouselContent ref={emblaRef}>
           {scripts.map((script) => (
             <CarouselItem key={script.id} className="flex justify-center">
               <div className="w-full max-w-4xl px-2">
