@@ -2,7 +2,6 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { Loader2 } from "lucide-react";
 
 export interface NewsItemProps {
   title: string;
@@ -14,11 +13,6 @@ export interface NewsItemProps {
   sentiment: "positive" | "negative" | "neutral";
   keywords: string[];
   readingTimeSeconds: number;
-  summary?: string | null;
-  llmSentiment?: "positive" | "negative" | "neutral" | null;
-  llmKeywords?: string[];
-  isSummarized?: boolean;
-  isSummarizing?: boolean;
 }
 
 const NewsItem = ({ 
@@ -29,38 +23,19 @@ const NewsItem = ({
   sourceName,
   sentiment,
   keywords,
-  readingTimeSeconds,
-  summary,
-  llmSentiment,
-  llmKeywords,
-  isSummarized = true,
-  isSummarizing = false
+  readingTimeSeconds
 }: NewsItemProps) => {
   const formattedDate = formatDistanceToNow(new Date(pubDate), { addSuffix: true });
   
-  // Define sentiment color - prefer LLM sentiment if available
-  const activeSentiment = llmSentiment || sentiment;
+  // Define sentiment color
   const sentimentColor = {
     positive: "bg-green-100 text-green-800",
     negative: "bg-red-100 text-red-800",
     neutral: "bg-blue-100 text-blue-800"
-  }[activeSentiment];
-  
-  // Use LLM keywords if available, otherwise use basic keywords
-  const activeKeywords = (llmKeywords && llmKeywords.length > 0) ? llmKeywords : keywords;
-  
-  // Format display text
-  const sentimentLabel = activeSentiment.charAt(0).toUpperCase() + activeSentiment.slice(1);
-  const sentimentSource = llmSentiment ? "AI" : "Basic";
-  
-  // Determine card styling based on summarization status
-  const cardClasses = `h-full transition-shadow duration-200 ${
-    isSummarizing ? 'border-blue-300 shadow-sm' : 
-    isSummarized && summary ? 'hover:shadow-md border-green-200' : 'hover:shadow-md'
-  }`;
+  }[sentiment];
   
   return (
-    <Card className={cardClasses}>
+    <Card className="h-full hover:shadow-md transition-shadow duration-200">
       <a 
         href={link} 
         target="_blank" 
@@ -76,30 +51,14 @@ const NewsItem = ({
           )}
         </CardHeader>
         <CardContent className="flex-grow pb-2">
-          {isSummarizing ? (
-            <div className="flex items-center text-sm text-blue-600 mb-2 animate-pulse">
-              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-              <span>Generating enhanced summary...</span>
-            </div>
-          ) : null}
-          
-          {summary ? (
-            <div className="mb-3">
-              <div className="text-xs font-medium text-green-700 mb-1">AI Summary:</div>
-              <CardDescription className="line-clamp-3">{summary}</CardDescription>
-            </div>
-          ) : (
-            <div className="mb-3">
-              <div className="text-xs font-medium text-gray-700 mb-1">No summary available yet</div>
-            </div>
-          )}
+          <CardDescription className="line-clamp-3">{description}</CardDescription>
           
           <div className="mt-3 flex flex-wrap gap-1">
             <Badge variant="outline" className={sentimentColor}>
-              {sentimentLabel} ({sentimentSource})
+              {sentiment.charAt(0).toUpperCase() + sentiment.slice(1)} (Full)
             </Badge>
             
-            {activeKeywords.map((keyword, index) => (
+            {keywords.map((keyword, index) => (
               <Badge key={index} variant="outline" className="bg-gray-100">
                 {keyword}
               </Badge>
@@ -108,7 +67,7 @@ const NewsItem = ({
             <Badge variant="outline" className="bg-gray-100 text-gray-800">
               {readingTimeSeconds < 60 
                 ? `${readingTimeSeconds}s read` 
-                : `${Math.floor(readingTimeSeconds / 60)}m read`}
+                : `${Math.floor(readingTimeSeconds / 60)}m read`} (Full)
             </Badge>
           </div>
         </CardContent>
