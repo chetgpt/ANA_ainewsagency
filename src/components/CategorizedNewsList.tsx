@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { Loader2, FileText } from "lucide-react";
+import { Loader2, FileText, Copy } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { generateNewsScript, analyzeSentiment, extractKeywords, calculateReadingTime } from "@/utils/textAnalysis";
@@ -84,19 +84,19 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         setScript(scriptData);
         
         toast({
-          title: "Script Generated",
-          description: "News script has been created from CNN feed",
+          title: "Enhanced Script Generated",
+          description: "A detailed news script has been created from CNN feed",
         });
       } catch (error) {
         console.error("Error fetching news:", error);
         
         // Fallback to sample data if fetching fails
         const sampleNewsItem = {
-          title: "Sample Technology News Story",
-          description: "This is a sample news story about recent developments in technology that is meant to demonstrate the script generation feature.",
+          title: "Tech Innovation Accelerates in Renewable Energy Sector",
+          description: "Leading tech companies have announced significant investments in renewable energy technologies, promising to revolutionize the industry within the next decade. These advancements focus on improving efficiency and reducing costs in solar and wind power generation.",
           sentiment: "positive" as const,
-          keywords: ["technology", "innovation", "development"],
-          readingTimeSeconds: 180,
+          keywords: ["technology innovation", "renewable energy", "sustainable development"],
+          readingTimeSeconds: 240,
           pubDate: new Date().toUTCString(),
           link: "#",
           sourceName: "NewsHub",
@@ -113,7 +113,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         setScript(scriptData);
         
         toast({
-          title: "Using Sample Data",
+          title: "Using Enhanced Sample Data",
           description: "Couldn't fetch news, using sample data instead",
           variant: "destructive"
         });
@@ -129,7 +129,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     return (
       <div className="flex justify-center items-center py-20">
         <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-        <span className="ml-2 text-gray-600">Generating news script...</span>
+        <span className="ml-2 text-gray-600">Generating enhanced news script...</span>
       </div>
     );
   }
@@ -137,13 +137,13 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">News Script</h2>
+        <h2 className="text-xl font-semibold">Professional News Script</h2>
       </div>
       
       {!script ? (
         <div className="flex justify-center items-center py-10">
           <Loader2 className="h-6 w-6 text-blue-600 animate-spin mr-2" />
-          <span className="text-gray-600">Generating news script...</span>
+          <span className="text-gray-600">Generating enhanced news script...</span>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 py-4">
@@ -154,31 +154,30 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
                 {script.title}
               </CardTitle>
               <div className="text-xs text-gray-500 mt-1">
-                {script.type === 'group' ? 'Multiple Related Articles' : 'Single Article'}
+                {script.type === 'group' ? 'Multiple Related Articles' : 'Broadcast-Ready Script'}
               </div>
             </CardHeader>
             <CardContent>
-              <div className="bg-gray-50 p-4 rounded-md border mb-4">
+              <div className="bg-gray-50 p-4 rounded-md border mb-4 font-mono">
                 <pre className="whitespace-pre-wrap text-sm">{script.content}</pre>
               </div>
-              <button 
-                className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                onClick={() => {
-                  if (script?.content) {
-                    navigator.clipboard.writeText(script.content);
-                    toast({
-                      title: "Copied to clipboard",
-                      description: "The script has been copied to your clipboard",
-                    });
-                  }
-                }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-clipboard">
-                  <rect width="8" height="4" x="8" y="2" rx="1" ry="1"/>
-                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-                </svg>
-                Copy to clipboard
-              </button>
+              <div className="flex justify-end">
+                <button 
+                  className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-md transition-colors"
+                  onClick={() => {
+                    if (script?.content) {
+                      navigator.clipboard.writeText(script.content);
+                      toast({
+                        title: "Copied to clipboard",
+                        description: "The enhanced script has been copied to your clipboard",
+                      });
+                    }
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy script
+                </button>
+              </div>
             </CardContent>
           </Card>
         </div>

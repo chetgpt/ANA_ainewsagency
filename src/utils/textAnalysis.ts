@@ -307,23 +307,50 @@ export function generateNewsScript(newsItem: any): string {
     const sourceName = newsItem.sourceName;
     const readingTimeMinutes = Math.round((newsItem.readingTimeSeconds || 0) / 60) || 1;
     
-    // Create intro
-    let intro = `Today we're discussing "${title}" with a ${sentiment} outlook. `;
+    // Enhanced script for single news article
+    // Create a more professional intro
+    let intro = `ANCHOR: Good day, viewers. Our top story today focuses on ${title}.\n\n`;
     
     if (sourceName) {
-      intro += `This story comes to us from ${sourceName}. `;
+      intro += `This breaking news comes to us from our partners at ${sourceName}.\n`;
     }
     
-    // Create body
-    let body = `${description} `;
+    // Add sentiment-based commentary
+    let sentimentIntro = "";
+    if (sentiment === "positive") {
+      sentimentIntro = "This development brings encouraging news as ";
+    } else if (sentiment === "negative") {
+      sentimentIntro = "In a concerning turn of events, ";
+    } else {
+      sentimentIntro = "In this balanced report, ";
+    }
     
+    // Create a more detailed body with segments
+    let body = `REPORTER: ${sentimentIntro}${description}\n\n`;
+    
+    // Add analysis section with key points
     if (keywords && keywords.length) {
-      body += `\n\nThe key points include ${keywords.join(', ')}. `;
+      body += "ANALYSIS DESK: Breaking down this story, our analysts highlight these key elements:\n";
+      keywords.forEach((keyword: string, index: number) => {
+        body += `${index + 1}. ${keyword.charAt(0).toUpperCase() + keyword.slice(1)}: This aspect represents a significant element of the developing situation.\n`;
+      });
+      body += "\n";
     }
     
-    // Create conclusion
-    let conclusion = `\nThis story will take approximately ${readingTimeMinutes} minute${readingTimeMinutes !== 1 ? 's' : ''} to read in full. `;
+    // Add expert commentary based on sentiment
+    if (sentiment === "positive") {
+      body += "EXPERT COMMENTARY: Industry experts view these developments as potentially beneficial, noting increased opportunities and positive outcomes could follow.\n\n";
+    } else if (sentiment === "negative") {
+      body += "EXPERT COMMENTARY: Specialists express concern regarding these developments, suggesting careful monitoring of the situation as it unfolds.\n\n";
+    } else {
+      body += "EXPERT COMMENTARY: Analysts maintain a neutral stance on these developments, acknowledging both potential benefits and challenges ahead.\n\n";
+    }
     
-    return `${intro}\n\n${body}\n${conclusion}`;
+    // Create conclusion with call to action
+    let conclusion = `ANCHOR: We'll continue to follow this story as it develops. The full report is available on our website and will take approximately ${readingTimeMinutes} minute${readingTimeMinutes !== 1 ? 's' : ''} to read.\n\n`;
+    conclusion += `For more in-depth coverage on this and related stories, stay tuned to our broadcast or visit our digital platforms.\n\n`;
+    conclusion += "Back to you in the studio.";
+    
+    return `${intro}${body}${conclusion}`;
   }
 }
