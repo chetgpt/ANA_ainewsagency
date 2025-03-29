@@ -12,6 +12,61 @@ interface LLMResponse {
 // LLM Provider types
 type LLMProvider = "perplexity" | "gemini";
 
+// Rate limiting configuration for Gemini API
+const GEMINI_RATE_LIMIT = {
+  requestsPerMinute: 15,
+  storageKey: 'gemini-api-requests'
+};
+
+// Function to check if we're exceeding the rate limit
+async function checkRateLimit(): Promise<number> {
+  try {
+    // Get stored request timestamps
+    const storedRequests = localStorage.getItem(GEMINI_RATE_LIMIT.storageKey);
+    const timestamps: number[] = storedRequests ? JSON.parse(storedRequests) : [];
+    
+    // Calculate the timestamp for one minute ago
+    const oneMinuteAgo = Date.now() - 60000;
+    
+    // Filter to only keep timestamps from the last minute
+    const recentRequests = timestamps.filter(time => time > oneMinuteAgo);
+    
+    // Check if we're at the limit
+    if (recentRequests.length >= GEMINI_RATE_LIMIT.requestsPerMinute) {
+      // Calculate how long we need to wait
+      const oldestRequest = Math.min(...recentRequests);
+      const waitTime = oldestRequest + 60000 - Date.now() + 100; // Add 100ms buffer
+      console.log(`Rate limit reached. Need to wait ${waitTime}ms before making another request`);
+      return waitTime;
+    }
+    
+    return 0; // No wait needed
+  } catch (error) {
+    console.error("Error checking rate limit:", error);
+    return 0; // Continue on error
+  }
+}
+
+// Function to record a new API request
+function recordApiRequest(): void {
+  try {
+    const storedRequests = localStorage.getItem(GEMINI_RATE_LIMIT.storageKey);
+    const timestamps: number[] = storedRequests ? JSON.parse(storedRequests) : [];
+    
+    // Add current timestamp
+    timestamps.push(Date.now());
+    
+    // Only keep the last minute's worth of requests for storage efficiency
+    const oneMinuteAgo = Date.now() - 60000;
+    const recentRequests = timestamps.filter(time => time > oneMinuteAgo);
+    
+    // Store updated list
+    localStorage.setItem(GEMINI_RATE_LIMIT.storageKey, JSON.stringify(recentRequests));
+  } catch (error) {
+    console.error("Error recording API request:", error);
+  }
+}
+
 // Function to get API key from environment or localStorage
 function getApiKey(keyName: string): string | undefined {
   // Try to get from environment first (for Vite, use import.meta.env)
@@ -63,6 +118,12 @@ export async function analyzeLLM(title: string, content: string): Promise<LLMRes
     console.log(`Using ${provider} for news analysis with API key length: ${apiKey.length}`);
     
     if (provider === "gemini") {
+      // Check for rate limiting before making the request
+      const waitTime = await checkRateLimit();
+      if (waitTime > 0) {
+        console.log(`Waiting ${waitTime}ms before making Gemini API request due to rate limiting`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
       return analyzeWithGemini(title, content, apiKey);
     } else {
       return analyzeWithPerplexity(title, content, apiKey);
@@ -76,6 +137,9 @@ export async function analyzeLLM(title: string, content: string): Promise<LLMRes
 // Function to analyze content with Gemini
 async function analyzeWithGemini(title: string, content: string, apiKey: string): Promise<LLMResponse> {
   try {
+    // Record this request for rate limiting
+    recordApiRequest();
+    
     // Updated to use gemini-2.0-flash model with structured framework for news analysis but casual output
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
@@ -392,6 +456,12 @@ export async function generateScriptWithLLM(title: string, content: string): Pro
     console.log(`Using ${provider} for script generation with API key length: ${apiKey.length}`);
     
     if (provider === "gemini") {
+      // Check for rate limiting before making the request
+      const waitTime = await checkRateLimit();
+      if (waitTime > 0) {
+        console.log(`Waiting ${waitTime}ms before making Gemini API request due to rate limiting`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
       return generateScriptWithGemini(title, content, apiKey);
     } else {
       return generateScriptWithPerplexity(title, content, apiKey);
@@ -426,6 +496,9 @@ export async function generateScriptWithLLM(title: string, content: string): Pro
 // Function to generate script with Gemini
 async function generateScriptWithGemini(title: string, content: string, apiKey: string): Promise<string> {
   try {
+    // Record this request for rate limiting
+    recordApiRequest();
+    
     // Updated to use structured framework for news analysis but casual output
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
