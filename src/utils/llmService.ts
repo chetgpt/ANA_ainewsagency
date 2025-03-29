@@ -160,14 +160,14 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
     // Parse the response as JSON
     try {
       // Extract the content from the response
-      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
       
-      if (!content) {
+      if (!responseContent) {
         throw new Error("Unexpected response format from Gemini API");
       }
       
       // Parse the JSON from the content
-      const parsedResponse = JSON.parse(content);
+      const parsedResponse = JSON.parse(responseContent);
       
       return {
         summary: parsedResponse.summary || "No summary available",

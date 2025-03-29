@@ -216,6 +216,8 @@ export async function extractMediaInfo(title: string, content: string): Promise<
     const imageRegex = /<img[^>]+src="([^">]+)"/g;
     const videoRegex = /<video[^>]+src="([^>]+)"|<iframe[^>]+src="([^">]+youtube|vimeo)/g;
     
+    // Extract all image matches
+    const imageMatches = content.match(imageRegex);
     const imageUrls = imageMatches ? 
       imageMatches.map(match => {
         const src = match.match(/src="([^">]+)"/);
@@ -223,6 +225,8 @@ export async function extractMediaInfo(title: string, content: string): Promise<
       }).filter(Boolean) as string[] : 
       [];
     
+    // Extract all video matches
+    const videoMatches = content.match(videoRegex);
     const videoUrls = videoMatches ? 
       videoMatches.map(match => {
         const src = match.match(/src="([^">]+)"/);
