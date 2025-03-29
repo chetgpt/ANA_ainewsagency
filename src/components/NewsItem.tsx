@@ -26,6 +26,7 @@ const NewsItem = ({
   link, 
   sourceName,
   summary,
+  description,
   isSummarized = false,
   isSummarizing = false
 }: NewsItemProps) => {
@@ -37,11 +38,14 @@ const NewsItem = ({
   // Extract source from Google News format (typically appears as [Source] at the end)
   const extractedSource = title.match(/\[([^\]]+)\]\s*$/)?.[1] || sourceName;
   
+  // Check if summary is a valid AI-generated summary or just the article description
+  const hasValidSummary = summary && summary !== description && summary.length > 50;
+  
   // Determine card styling based on summarization status
   const cardClasses = `h-full transition-shadow duration-200 ${
     isSummarizing ? 'border-blue-300 shadow-sm' : 
-    isSummarized && summary ? 'hover:shadow-md border-green-200' : 
-    isSummarized && !summary ? 'hover:shadow-md border-red-100' : 
+    isSummarized && hasValidSummary ? 'hover:shadow-md border-green-200' : 
+    isSummarized && !hasValidSummary ? 'hover:shadow-md border-red-100' : 
     'hover:shadow-md border-gray-100'
   }`;
   
@@ -69,7 +73,7 @@ const NewsItem = ({
             </div>
           ) : null}
           
-          {summary ? (
+          {hasValidSummary ? (
             <div className="mb-3">
               <div className="text-xs font-medium text-green-700 mb-1">AI Summary:</div>
               <CardDescription className="line-clamp-4">{summary}</CardDescription>
@@ -77,11 +81,11 @@ const NewsItem = ({
           ) : (
             <div className="mb-3">
               <div className="text-xs font-medium text-gray-700 mb-1">
-                {isSummarized ? "Summary generation failed" : "Summary not yet generated"}
+                {isSummarized ? "Summary generation pending" : "Summary not yet generated"}
               </div>
               <CardDescription className="line-clamp-3 text-gray-500 italic">
                 {isSummarized ? 
-                  "Unable to generate a summary for this article." : 
+                  "Our AI is still working on a concise summary for this article." : 
                   "Click 'Generate Summaries' to create AI summaries."
                 }
               </CardDescription>

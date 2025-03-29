@@ -360,15 +360,21 @@ export async function fullAnalyzeArticle(article: {
   readingTimeSeconds: number;
 }> {
   try {
+    console.log(`Starting full analysis for article: ${article.title}`);
     const fullContent = await fetchArticleContent(article.link);
     
     if (!fullContent) {
+      console.warn(`Could not retrieve content for: ${article.title}`);
       throw new Error("Could not retrieve article content");
     }
     
+    console.log(`Retrieved content length: ${fullContent.length} characters`);
+    
     // Try to use LLM for analysis first
     try {
+      console.log(`Calling LLM for analysis of: ${article.title}`);
       const llmAnalysis = await analyzeLLM(article.title, fullContent);
+      console.log(`LLM analysis successful for: ${article.title}`);
       
       return {
         fullContent,
@@ -377,7 +383,8 @@ export async function fullAnalyzeArticle(article: {
         readingTimeSeconds: calculateReadingTime(fullContent)
       };
     } catch (llmError) {
-      console.warn("LLM analysis failed, falling back to local analysis:", llmError);
+      console.warn(`LLM analysis failed for: ${article.title}, error:`, llmError);
+      console.warn("Falling back to local analysis");
       
       // Fall back to local analysis
       const combinedText = article.title + " " + fullContent;
@@ -514,12 +521,16 @@ export async function generateNewsScript(newsItem: any): Promise<string> {
     const description = newsItem.description;
     const sourceName = newsItem.sourceName;
     
-    // Try to use LLM for script generation first
+    // Try to use LLM for script generation first with better logging
     try {
       const contentToUse = fullContent || description;
-      return await generateScriptWithLLM(title, contentToUse);
+      console.log(`Generating script with LLM for: ${title} (content length: ${contentToUse.length})`);
+      const script = await generateScriptWithLLM(title, contentToUse);
+      console.log(`LLM script generation successful for: ${title}`);
+      return script;
     } catch (llmError) {
-      console.warn("LLM script generation failed, falling back to local generation:", llmError);
+      console.warn(`LLM script generation failed for: ${title}, error:`, llmError);
+      console.warn("Falling back to local generation");
       
       // Create a more complete summary from the full content if available
       let summary = "";

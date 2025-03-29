@@ -217,8 +217,8 @@ const NewsList = ({ feedUrl, onStatusUpdate, combineAllSources = false }: NewsLi
     }
     
     // Skip if the item has already been successfully summarized
-    if (item.isSummarized && item.summary) {
-      console.log(`Skipping summarization for item ${itemId}: Already has a summary.`);
+    if (item.isSummarized && item.summary && item.summary.length > 50 && item.summary !== item.description) {
+      console.log(`Skipping summarization for item ${itemId}: Already has a valid summary.`);
       return;
     }
     
@@ -241,9 +241,10 @@ const NewsList = ({ feedUrl, onStatusUpdate, combineAllSources = false }: NewsLi
       const timeoutId = setTimeout(() => {
         abortController.abort(); 
         console.log(`Summarization timed out for item ${itemId}`);
-      }, 30000); // 30 second timeout
+      }, 45000); // Increase timeout to 45 seconds for better chance of completion
       
       try {
+        console.log(`Fetching article content for item ${itemId}`);
         const fullContent = await fetchArticleContent(item.link, abortController.signal);
         const contentToAnalyze = fullContent || item.description;
         
@@ -259,12 +260,25 @@ const NewsList = ({ feedUrl, onStatusUpdate, combineAllSources = false }: NewsLi
           return;
         }
         
-        // Try LLM analysis
+        // Try LLM analysis with explicit logging
         try {
           console.log(`Starting LLM analysis for item ${itemId} with content length: ${contentToAnalyze.length}`);
+          
+          // Force console log to see exactly what's being sent to LLM
+          console.log(`LLM input - Title: ${item.title}`);
+          console.log(`LLM input - Content preview: ${contentToAnalyze.substring(0, 200)}...`);
+          
           const llmResult = await analyzeLLM(item.title, contentToAnalyze);
           
-          console.log(`LLM summarization successful for item ${itemId}. Summary: ${llmResult.summary.substring(0, 50)}...`);
+          // Validate that we got a real summary back
+          if (!llmResult.summary || llmResult.summary.length < 50) {
+            throw new Error("LLM returned an insufficient summary");
+          }
+          
+          // Log the summary to verify it's a real summary and not just echoing the input
+          console.log(`LLM summary for item ${itemId}: ${llmResult.summary.substring(0, 100)}...`);
+          
+          // Update the item with the summary
           updateNewsItem({
             ...item,
             summary: llmResult.summary,
@@ -272,9 +286,10 @@ const NewsList = ({ feedUrl, onStatusUpdate, combineAllSources = false }: NewsLi
             llmKeywords: llmResult.keywords,
             isSummarized: true,
             isSummarizing: false,
-            // Update reading time based on full content if available
             readingTimeSeconds: fullContent ? calculateReadingTime(fullContent) : item.readingTimeSeconds,
           });
+          
+          console.log(`Successfully updated item ${itemId} with LLM summary`);
           
         } catch (llmError) {
           console.warn(`LLM analysis failed for item ${itemId}, falling back to local analysis:`, llmError);
@@ -292,12 +307,12 @@ const NewsList = ({ feedUrl, onStatusUpdate, combineAllSources = false }: NewsLi
           
           updateNewsItem({
             ...item,
-            summary: fallbackSummary, // Use basic summary
-            sentiment: fallbackSentiment, // Store fallback in primary sentiment field
-            keywords: fallbackKeywords, // Store fallback in primary keywords field
-            llmSentiment: null, // Indicate LLM didn't provide this
-            llmKeywords: [], // Indicate LLM didn't provide this
-            isSummarized: true, // Mark as summarized (even with fallback)
+            summary: fallbackSummary, 
+            sentiment: fallbackSentiment,
+            keywords: fallbackKeywords,
+            llmSentiment: null,
+            llmKeywords: [],
+            isSummarized: true,
             isSummarizing: false,
             readingTimeSeconds: fullContent ? calculateReadingTime(fullContent) : item.readingTimeSeconds,
           });
@@ -314,7 +329,7 @@ const NewsList = ({ feedUrl, onStatusUpdate, combineAllSources = false }: NewsLi
       // Mark item as failed summarization
       updateNewsItem({
         ...item,
-        isSummarized: true, // Mark as summarized (failure state)
+        isSummarized: true,
         isSummarizing: false,
         summary: "Could not summarize content."
       });
@@ -335,7 +350,7 @@ const NewsList = ({ feedUrl, onStatusUpdate, combineAllSources = false }: NewsLi
     console.log(`Starting summarization queue for ${itemIds.length} items.`);
     
     // Delay startup to ensure state is settled
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Reset activeSummarizations to ensure we don't have stale entries
     setActiveSummarizations(new Set());
@@ -352,8 +367,9 @@ const NewsList = ({ feedUrl, onStatusUpdate, combineAllSources = false }: NewsLi
         return false;
       }
       
-      if (item.isSummarized && item.summary) {
-        console.log(`Item ${id} already has a summary`);
+      // Skip items that already have valid summaries
+      if (item.isSummarized && item.summary && item.summary.length > 50 && item.summary !== item.description) {
+        console.log(`Item ${id} already has a valid summary`);
         return false;
       }
       
@@ -378,7 +394,7 @@ const NewsList = ({ feedUrl, onStatusUpdate, combineAllSources = false }: NewsLi
       
       // Small delay between batches to avoid overwhelming the API
       if (i + MAX_CONCURRENT < itemsToProcess.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
     
