@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import NewsHeader from "@/components/NewsHeader";
 import NewsList from "@/components/NewsList";
@@ -130,7 +129,9 @@ const Index = () => {
                     const list = document.querySelector('div[class*="NewsList"]');
                     if (list) {
                       const clearCacheButton = list.querySelector('button:first-of-type');
-                      clearCacheButton?.click();
+                      if (clearCacheButton && clearCacheButton instanceof HTMLElement) {
+                        clearCacheButton.click();
+                      }
                     }
                   }} 
                   className="text-red-500 cursor-pointer"
