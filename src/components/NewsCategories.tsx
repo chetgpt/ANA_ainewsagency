@@ -1,12 +1,12 @@
 
 import { Button } from "@/components/ui/button";
-import { Briefcase, Film, Globe, Music, News, Star, Sports } from "lucide-react";
+import { Briefcase, Film, Globe, Music, Newspaper, Trophy, Star } from "lucide-react";
 
 export const NEWS_CATEGORIES = [
-  { id: "all", name: "All News", icon: News },
+  { id: "all", name: "All News", icon: Newspaper },
   { id: "world", name: "World", icon: Globe },
   { id: "business", name: "Business", icon: Briefcase },
-  { id: "sports", name: "Sports", icon: Sports },
+  { id: "sports", name: "Sports", icon: Trophy },
   { id: "entertainment", name: "Entertainment", icon: Star },
   { id: "music", name: "Music", icon: Music },
   { id: "movies", name: "Movies", icon: Film }
