@@ -106,8 +106,8 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
           sourceName: "CNN",
         };
         
-        // Generate a script for the news item
-        const newsScript = generateNewsScript(newsItem);
+        // Generate a script for the news item - now async function
+        const newsScript = await generateNewsScript(newsItem);
         console.log("Generated script with length:", newsScript.length);
         
         const scriptData = {
@@ -128,7 +128,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         
         toast({
           title: "News Summary Generated",
-          description: "A comprehensive news summary has been created",
+          description: "A comprehensive news summary has been created using AI",
         });
       } catch (error) {
         console.error("Error fetching news:", error);
@@ -146,24 +146,29 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
           sourceName: "NewsHub",
         };
         
-        const newsScript = generateNewsScript(sampleNewsItem);
-        console.log("Generated fallback script with sample data");
-        
-        const scriptData = {
-          title: sampleNewsItem.title,
-          content: newsScript,
-          type: 'single',
-          summary: {
-            description: sampleNewsItem.description,
-            sentiment: sampleNewsItem.sentiment,
-            keywords: sampleNewsItem.keywords,
-            readingTimeSeconds: sampleNewsItem.readingTimeSeconds,
-            pubDate: sampleNewsItem.pubDate,
-            sourceName: sampleNewsItem.sourceName
-          }
+        // Generate script - now async function
+        const generateFallbackScript = async () => {
+          const newsScript = await generateNewsScript(sampleNewsItem);
+          console.log("Generated fallback script with sample data");
+          
+          const scriptData = {
+            title: sampleNewsItem.title,
+            content: newsScript,
+            type: 'single',
+            summary: {
+              description: sampleNewsItem.description,
+              sentiment: sampleNewsItem.sentiment,
+              keywords: sampleNewsItem.keywords,
+              readingTimeSeconds: sampleNewsItem.readingTimeSeconds,
+              pubDate: sampleNewsItem.pubDate,
+              sourceName: sampleNewsItem.sourceName
+            }
+          };
+          
+          setScript(scriptData);
         };
         
-        setScript(scriptData);
+        generateFallbackScript();
         
         toast({
           title: "Using Sample Data",

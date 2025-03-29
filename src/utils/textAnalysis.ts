@@ -1,6 +1,7 @@
 /**
  * Text analysis utilities for news content
  */
+import { analyzeLLM, generateScriptWithLLM } from './llmService';
 
 // Analyzes sentiment of text (very basic implementation)
 export function analyzeSentiment(text: string): "positive" | "negative" | "neutral" {
@@ -194,18 +195,32 @@ export async function fullAnalyzeArticle(article: {
       throw new Error("Could not retrieve article content");
     }
     
-    // Analyze the full content
-    const combinedText = article.title + " " + fullContent;
-    const sentiment = analyzeSentiment(combinedText);
-    const keywords = extractKeywords(combinedText, 3);
-    const readingTimeSeconds = calculateReadingTime(fullContent);
-    
-    return {
-      fullContent,
-      sentiment,
-      keywords,
-      readingTimeSeconds
-    };
+    // Try to use LLM for analysis first
+    try {
+      const llmAnalysis = await analyzeLLM(article.title, fullContent);
+      
+      return {
+        fullContent,
+        sentiment: llmAnalysis.sentiment,
+        keywords: llmAnalysis.keywords,
+        readingTimeSeconds: calculateReadingTime(fullContent)
+      };
+    } catch (llmError) {
+      console.warn("LLM analysis failed, falling back to local analysis:", llmError);
+      
+      // Fall back to local analysis
+      const combinedText = article.title + " " + fullContent;
+      const sentiment = analyzeSentiment(combinedText);
+      const keywords = extractKeywords(combinedText, 3);
+      const readingTimeSeconds = calculateReadingTime(fullContent);
+      
+      return {
+        fullContent,
+        sentiment,
+        keywords,
+        readingTimeSeconds
+      };
+    }
   } catch (error) {
     console.error("Error in full article analysis:", error);
     throw error;
@@ -294,7 +309,7 @@ export function groupSimilarNews(newsItems: any[]): any[] {
 }
 
 // Generate a news script for a group of news items or a single item
-export function generateNewsScript(newsItem: any): string {
+export async function generateNewsScript(newsItem: any): Promise<string> {
   // Handle grouped news items
   if (newsItem.type === 'group') {
     const items = newsItem.items;
@@ -326,37 +341,44 @@ export function generateNewsScript(newsItem: any): string {
     const title = newsItem.title;
     const fullContent = newsItem.fullContent || ""; 
     const description = newsItem.description;
-    const keywords = newsItem.keywords || [];
     const sourceName = newsItem.sourceName;
     
-    // Create a more complete summary from the full content if available
-    let summary = "";
-    
-    if (fullContent && fullContent.length > description.length) {
-      // Split the content into sentences
-      const sentences = fullContent.match(/[^.!?]+[.!?]+/g) || [];
+    // Try to use LLM for script generation first
+    try {
+      const contentToUse = fullContent || description;
+      return await generateScriptWithLLM(title, contentToUse);
+    } catch (llmError) {
+      console.warn("LLM script generation failed, falling back to local generation:", llmError);
       
-      // Take the first few sentences for the summary (up to 10)
-      const summaryLength = Math.min(sentences.length, 10);
-      summary = sentences.slice(0, summaryLength).join(' ').trim();
-    } else {
-      summary = description;
+      // Create a more complete summary from the full content if available
+      let summary = "";
+      
+      if (fullContent && fullContent.length > description.length) {
+        // Split the content into sentences
+        const sentences = fullContent.match(/[^.!?]+[.!?]+/g) || [];
+        
+        // Take the first few sentences for the summary (up to 10)
+        const summaryLength = Math.min(sentences.length, 10);
+        summary = sentences.slice(0, summaryLength).join(' ').trim();
+      } else {
+        summary = description;
+      }
+      
+      let script = `${title}\n\n`;
+      
+      if (sourceName) {
+        script += `Source: ${sourceName}\n\n`;
+      }
+      
+      // Add the main content summary
+      script += `${summary}\n\n`;
+      
+      // Add keywords if available
+      if (newsItem.keywords && newsItem.keywords.length) {
+        script += `Key topics: ${newsItem.keywords.join(', ')}`;
+      }
+      
+      return script;
     }
-    
-    let script = `${title}\n\n`;
-    
-    if (sourceName) {
-      script += `Source: ${sourceName}\n\n`;
-    }
-    
-    // Add the main content summary
-    script += `${summary}\n\n`;
-    
-    // Add keywords if available
-    if (keywords && keywords.length) {
-      script += `Key topics: ${keywords.join(', ')}`;
-    }
-    
-    return script;
   }
 }
