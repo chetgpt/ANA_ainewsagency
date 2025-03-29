@@ -208,10 +208,19 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
   // Background summarization function
   const summarizeItemInBackground = async (itemId: string, currentItems: CachedNewsItem[]): Promise<CachedNewsItem | null> => {
     const item = currentItems.find(i => i.id === itemId);
-    // Ensure item exists and isn't already summarized or being summarized
-    if (!item || item.isSummarized || item.isSummarizing) {
-      console.log(`Skipping summarization for item ${itemId}: Already summarized or in progress.`);
+    // Only skip if the item doesn't exist, is already being summarized, or has a valid summary
+    if (!item || item.isSummarizing) {
+      console.log(`Skipping summarization for item ${itemId}: Not found or in progress.`);
       return null; // Return null if no action needed
+    }
+    
+    // If marked as summarized but doesn't have a summary, we should retry
+    if (item.isSummarized && !item.summary) {
+      console.log(`Item ${itemId} was marked as summarized but has no summary. Retrying.`);
+      // Continue with summarization instead of returning
+    } else if (item.isSummarized && item.summary) {
+      console.log(`Skipping summarization for item ${itemId}: Already has a summary.`);
+      return null;
     }
 
     try {
@@ -291,7 +300,13 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     // Filter out IDs that might already be summarized or are currently summarizing
     const itemsToProcess = itemIds.filter(id => {
       const item = currentItems.find(i => i.id === id);
-      return item && !item.isSummarized && !item.isSummarizing;
+      // Process if item exists and either:
+      // 1. Not summarized
+      // 2. Is marked as summarized but has no summary
+      // 3. Not currently being summarized
+      return item && 
+             (!item.isSummarized || (item.isSummarized && !item.summary)) && 
+             !item.isSummarizing;
     });
     
     if (itemsToProcess.length === 0) {
@@ -582,13 +597,37 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
 
   // Define a function to sort news items for display prioritization
   const sortedNewsItems = [...newsItems].sort((a, b) => {
-    // First, prioritize summarized items
+    // First, prioritize items with summaries
+    if (a.summary && !b.summary) return -1;
+    if (!a.summary && b.summary) return 1;
+    
+    // Then prioritize summarized items
     if (a.isSummarized && !b.isSummarized) return -1;
     if (!a.isSummarized && b.isSummarized) return 1;
     
     // Then sort by date (newest first)
     return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
   });
+  
+  // Force a resummary of all items
+  const resummaryAllItems = () => {
+    const itemsToProcess = newsItems
+      .filter(item => !item.summary || !item.isSummarized)
+      .map(item => item.id);
+      
+    if (itemsToProcess.length > 0) {
+      toast({
+        title: "Generating summaries",
+        description: `Summarizing ${itemsToProcess.length} news items...`,
+      });
+      processSummarizationQueue(itemsToProcess, newsItems);
+    } else {
+      toast({
+        title: "No items to summarize",
+        description: "All news items already have summaries or are being summarized.",
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -633,6 +672,12 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
           )}
         </div>
         <div className="flex space-x-2">
+          <button
+            onClick={resummaryAllItems}
+            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
+          >
+            Generate Summaries
+          </button>
           <button
             onClick={clearCache}
             className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
