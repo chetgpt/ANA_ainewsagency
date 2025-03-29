@@ -1,5 +1,6 @@
+
 import { useState, useEffect } from "react";
-import { Loader2, FileText, Copy, Newspaper } from "lucide-react";
+import { Loader2, FileText, Copy, Newspaper, Speaker, Square } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
