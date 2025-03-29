@@ -32,11 +32,12 @@ const NewsHeader = ({
               </span>
             </div>
           )}
-          {lastUpdated && (
-            <div className="text-xs text-gray-500 mr-4">
-              Last updated: {lastUpdated.toLocaleString()}
-            </div>
-          )}
+          <div className="text-xs text-gray-500 mr-4 flex items-center">
+            <span className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded mr-2">Last 24h</span>
+            {lastUpdated && (
+              <span>Last updated: {lastUpdated.toLocaleString()}</span>
+            )}
+          </div>
           <div className="text-sm text-gray-600">
             Source: <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 font-medium">{sourceName}</a>
           </div>

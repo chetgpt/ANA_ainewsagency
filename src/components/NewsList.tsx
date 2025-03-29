@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import NewsItem, { NewsItemProps } from "./NewsItem";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -43,6 +42,14 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       onStatusUpdate(summarizingCount, lastUpdated);
     }
   }, [summarizingCount, lastUpdated, onStatusUpdate]);
+
+  // Define a function to check if a date is within the last day
+  const isWithinLastDay = (dateString: string): boolean => {
+    const pubDate = new Date(dateString);
+    const now = new Date();
+    const oneDayAgo = new Date(now.setDate(now.getDate() - 1));
+    return pubDate >= oneDayAgo;
+  };
 
   // Generate a unique ID for a news item based on its content
   const generateNewsItemId = (title: string, pubDate: string, link: string): string => {
@@ -298,14 +305,18 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     // Try to load from cache first, unless force refresh is requested
     const cachedNews = loadCachedNews();
     if (!forceRefresh && cachedNews) {
+      // Filter cached news to only include items from the last day
+      const filteredItems = cachedNews.items.filter(item => isWithinLastDay(item.pubDate));
+      setNewsItems(filteredItems);
+      
       // Check if there are any items that haven't been summarized yet from cache
-      const itemsToSummarizeFromCache = newsItems
+      const itemsToSummarizeFromCache = filteredItems
         .filter(item => !item.isSummarized && !item.isSummarizing)
         .map(item => item.id);
       
       if (itemsToSummarizeFromCache.length > 0) {
         console.log(`Found ${itemsToSummarizeFromCache.length} items in cache needing summarization.`);
-        processSummarizationQueue(itemsToSummarizeFromCache, newsItems);
+        processSummarizationQueue(itemsToSummarizeFromCache, filteredItems);
       }
       return;
     }
@@ -356,6 +367,11 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
         const pubDateStr = item.querySelector("pubDate")?.textContent || new Date().toUTCString();
         const link = item.querySelector("link")?.textContent || "#";
         const description = item.querySelector("description")?.textContent || "";
+        
+        // Skip items that are older than one day
+        if (!isWithinLastDay(pubDateStr)) {
+          return;
+        }
         
         // Generate a unique ID for this news item
         const id = generateNewsItemId(title, pubDateStr, link);

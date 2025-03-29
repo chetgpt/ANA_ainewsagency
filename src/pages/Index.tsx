@@ -25,7 +25,10 @@ const Index = () => {
         lastUpdated={lastUpdated}
       />
       <main className="container mx-auto px-4 py-4 flex-grow">
-        <h2 className="text-2xl font-bold mb-6">Latest News</h2>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">Latest News</h2>
+          <div className="text-sm text-gray-500">Showing news from the last 24 hours</div>
+        </div>
         <NewsList onStatusUpdate={handleStatusUpdate} />
       </main>
       <footer className="bg-gray-100 border-t border-gray-200 py-4">
