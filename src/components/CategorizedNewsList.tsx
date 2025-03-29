@@ -35,6 +35,19 @@ interface NewsScript {
 const MAX_NEWS_ITEMS_PER_SOURCE = 3; // Get 3 items from each source
 const MAX_TOTAL_NEWS_ITEMS = 20; // Max total items to process
 
+// Rate limiting - 13 requests per minute
+const MAX_REQUESTS_PER_MINUTE = 13;
+let requestsThisMinute = 0;
+let lastRequestResetTime = Date.now();
+
+const resetRequestCounter = () => {
+  const now = Date.now();
+  if (now - lastRequestResetTime >= 60000) {
+    requestsThisMinute = 0;
+    lastRequestResetTime = now;
+  }
+};
+
 const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: CategorizedNewsListProps) => {
   const [loading, setLoading] = useState(true);
   const [apiStatus, setApiStatus] = useState<{
@@ -60,6 +73,23 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
   useEffect(() => {
     fetchAllNewsSources();
   }, [toast, refreshTrigger]);
+
+  // Check rate limit before making LLM API calls
+  const checkRateLimit = () => {
+    resetRequestCounter();
+    
+    if (requestsThisMinute >= MAX_REQUESTS_PER_MINUTE) {
+      toast({
+        title: "Rate limit reached",
+        description: "Please try again in a minute",
+        variant: "destructive",
+      });
+      return false;
+    }
+    
+    requestsThisMinute++;
+    return true;
+  };
 
   // Fetch news from all sources
   const fetchAllNewsSources = async () => {
@@ -94,6 +124,12 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
       // Limit to max total items
       allNewsItems = allNewsItems.slice(0, MAX_TOTAL_NEWS_ITEMS);
       
+      // Check rate limit before proceeding with LLM operations
+      if (!checkRateLimit()) {
+        setLoading(false);
+        return;
+      }
+      
       // Group similar news items using LLM
       const groupedItems = groupSimilarNews(allNewsItems);
       
@@ -102,6 +138,11 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
       
       for (const item of groupedItems) {
         try {
+          // Check rate limit before each LLM operation
+          if (!checkRateLimit()) {
+            break;
+          }
+          
           // Check if this is a group or individual item
           if (item.type === 'group') {
             // Handle group of similar news
@@ -308,12 +349,6 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
     }
   };
 
-  const formatReadingTime = (seconds: number) => {
-    return seconds < 60 
-      ? `${seconds}s read` 
-      : `${Math.floor(seconds / 60)}m read`;
-  };
-
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -365,9 +400,6 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
                   </CardTitle>
                   <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
                     <span>{new Date(script.summary?.pubDate || "").toLocaleDateString()}</span>
-                    {script.summary?.readingTimeSeconds && (
-                      <span>• {formatReadingTime(script.summary.readingTimeSeconds)}</span>
-                    )}
                     {script.summary?.link && script.summary.link !== "#" && (
                       <a 
                         href={script.summary.link} 
@@ -421,34 +453,49 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
                     {script.summary?.keywords.map((keyword, idx) => (
                       <Badge key={idx} variant="outline">{keyword}</Badge>
                     ))}
-                    {script.summary?.sentiment && (
-                      <Badge 
-                        variant={
-                          script.summary.sentiment === "positive" ? "default" : 
-                          script.summary.sentiment === "negative" ? "destructive" : 
-                          "outline"
-                        }
-                      >
-                        {script.summary.sentiment}
-                      </Badge>
-                    )}
                   </div>
                   <div className="flex justify-end">
-                    <button 
-                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-md transition-colors"
-                      onClick={() => {
-                        if (script?.content) {
-                          navigator.clipboard.writeText(script.content);
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline" 
+                        size="sm"
+                        className="text-sm flex items-center gap-1 bg-blue-50 text-blue-600 hover:text-blue-800 hover:bg-blue-100 transition-colors"
+                        onClick={() => {
+                          // Stop any ongoing speech
+                          window.speechSynthesis.cancel();
+                          
+                          // Start speech synthesis for this article
+                          const utterance = new SpeechSynthesisUtterance(script.content);
+                          utterance.rate = 1.0;
+                          utterance.pitch = 1.0;
+                          window.speechSynthesis.speak(utterance);
+                          
                           toast({
-                            title: "Copied to clipboard",
-                            description: "The news summary has been copied to your clipboard",
+                            title: "Text-to-Speech",
+                            description: "Reading the summary...",
                           });
-                        }
-                      }}
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copy summary
-                    </button>
+                        }}
+                      >
+                        <Speaker className="h-4 w-4" />
+                        TL;DR
+                      </Button>
+                      
+                      <button 
+                        className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-md transition-colors"
+                        onClick={() => {
+                          if (script?.content) {
+                            navigator.clipboard.writeText(script.content);
+                            toast({
+                              title: "Copied to clipboard",
+                              description: "The news summary has been copied to your clipboard",
+                            });
+                          }
+                        }}
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copy
+                      </button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
