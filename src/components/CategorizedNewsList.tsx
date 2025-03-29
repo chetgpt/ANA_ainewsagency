@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Loader2, FileText, Copy, Newspaper } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -44,9 +45,9 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
       setLoading(true);
       
       try {
-        // Use CNN's top stories RSS feed with a CORS proxy
+        // Use ABC News RSS feed with a CORS proxy
         const corsProxy = "https://api.allorigins.win/raw?url=";
-        const rssUrl = "http://rss.cnn.com/rss/cnn_topstories.rss";
+        const rssUrl = "https://abcnews.go.com/abcnews/topstories";
         const response = await fetch(`${corsProxy}${encodeURIComponent(rssUrl)}`);
         
         if (!response.ok) {
@@ -115,7 +116,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
           readingTimeSeconds,
           pubDate,
           link,
-          sourceName: "CNN",
+          sourceName: "ABC News",
         };
         
         // Generate a script for the news item - now async function
@@ -147,15 +148,15 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         
         // Fallback to sample data if fetching fails
         const sampleNewsItem = {
-          title: "Fox News to pay $787 million in Dominion settlement",
-          description: "Fox News will pay more than $787 million to Dominion Voting Systems after the sides hammered out a last-minute settlement Tuesday in the explosive defamation case launched against the right-wing network. Fox acknowledged the court's rulings finding 'certain claims about Dominion to be false.' However, the network will not have to admit on air that it spread election lies.",
-          fullContent: "Fox News will pay more than $787 million to Dominion Voting Systems after the sides hammered out a last-minute settlement Tuesday in the explosive defamation case launched against the right-wing network. Fox acknowledged the court's rulings finding 'certain claims about Dominion to be false.' However, the network will not have to admit on air that it spread election lies. The settlement was announced just as opening statements were about to begin in the high-profile case. Fox was facing the possibility of having to pay $1.6 billion in damages. The settlement means top Fox executives like Rupert Murdoch will not have to testify in the case. Dominion had alleged that Fox knowingly spread false claims that its voting machines were rigged in the 2020 presidential election in order to boost ratings and prevent viewers from defecting to other networks.",
-          sentiment: "negative" as const,
-          keywords: ["Fox News", "Dominion", "settlement"],
-          readingTimeSeconds: 240,
+          title: "Breaking news from ABC News",
+          description: "This is a sample news article from ABC News to demonstrate the functionality when the actual feed cannot be fetched.",
+          fullContent: "This is a sample news article from ABC News to demonstrate the functionality when the actual feed cannot be fetched. The content is shown here as a placeholder. In a real scenario, this would contain the full article text that would be analyzed and summarized.",
+          sentiment: "neutral" as const,
+          keywords: ["ABC News", "sample", "news"],
+          readingTimeSeconds: 120,
           pubDate: new Date().toUTCString(),
           link: "#",
-          sourceName: "NewsHub",
+          sourceName: "ABC News",
         };
         
         // Generate script - now async function
