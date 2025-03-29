@@ -23,13 +23,8 @@ interface NewsSourceSelectorProps {
 }
 
 const NewsSourceSelector = ({ currentSource, onSourceChange }: NewsSourceSelectorProps) => {
-  // Since we only have one source now, no need for a dropdown
-  return (
-    <div className="flex items-center space-x-2 bg-white rounded-lg p-2 shadow-sm">
-      <Rss className="h-5 w-5 text-blue-600" />
-      <span className="text-gray-800 font-medium">{currentSource.name}</span>
-    </div>
-  );
+  // Empty component as we no longer need to display the source
+  return null;
 };
 
 export default NewsSourceSelector;
