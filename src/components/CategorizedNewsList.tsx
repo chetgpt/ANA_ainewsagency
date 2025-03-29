@@ -29,7 +29,7 @@ interface NewsScript {
   }
 }
 
-const MAX_NEWS_ITEMS = 5; // Maximum number of news items to fetch and process
+const MAX_NEWS_ITEMS = 10; // Increased from 5 to 10 maximum news items to fetch and process
 
 const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => {
   const [loading, setLoading] = useState(true);
@@ -42,7 +42,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   const [currentPage, setCurrentPage] = useState(0);
   const { toast } = useToast();
 
-  // Calculate the total number of pages
+  // Calculate the total number of pages - show 2 news items per page
   const totalPages = Math.max(1, Math.ceil(scripts.length / 2));
   // Get items for the current page (2 per page)
   const currentScripts = scripts.slice(currentPage * 2, (currentPage + 1) * 2);
@@ -77,12 +77,22 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         const allItems = xmlDoc.querySelectorAll("item");
         console.log(`Found ${allItems.length} items in the RSS feed`);
         
+        // Sort items by date (newest first) if they have pubDate
+        const sortedItems: Element[] = [];
+        allItems.forEach(item => sortedItems.push(item));
+        
+        sortedItems.sort((a, b) => {
+          const dateA = new Date(a.querySelector("pubDate")?.textContent || "").getTime();
+          const dateB = new Date(b.querySelector("pubDate")?.textContent || "").getTime();
+          return dateB - dateA; // Sort in descending order (newest first)
+        });
+        
         // Process multiple items (limited to MAX_NEWS_ITEMS)
-        const itemsToProcess = Math.min(allItems.length, MAX_NEWS_ITEMS);
+        const itemsToProcess = Math.min(sortedItems.length, MAX_NEWS_ITEMS);
         const newsScripts: NewsScript[] = [];
         
         for (let i = 0; i < itemsToProcess; i++) {
-          const item = allItems[i];
+          const item = sortedItems[i];
           
           // Extract the item data
           const title = item.querySelector("title")?.textContent || "No title";
@@ -143,7 +153,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         
         toast({
           title: "News Summaries Generated",
-          description: `${newsScripts.length} news summaries have been created`,
+          description: `${newsScripts.length} latest news summaries have been created`,
         });
       } catch (error) {
         console.error("Error fetching news:", error);
@@ -210,6 +220,111 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Add refresh function to get the latest news
+  const refreshNews = async () => {
+    setLoading(true);
+    toast({
+      title: "Refreshing News",
+      description: "Fetching the latest news updates...",
+    });
+    
+    try {
+      // Fetch the latest news again
+      const corsProxy = "https://api.allorigins.win/raw?url=";
+      const rssUrl = "https://abcnews.go.com/abcnews/topstories";
+      const response = await fetch(`${corsProxy}${encodeURIComponent(rssUrl)}`, {
+        cache: "no-store" // Ensure we don't use cached data
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch RSS feed: ${response.status}`);
+      }
+      
+      const data = await response.text();
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(data, "text/xml");
+      
+      const allItems = xmlDoc.querySelectorAll("item");
+      
+      // Sort items by date (newest first)
+      const sortedItems: Element[] = [];
+      allItems.forEach(item => sortedItems.push(item));
+      
+      sortedItems.sort((a, b) => {
+        const dateA = new Date(a.querySelector("pubDate")?.textContent || "").getTime();
+        const dateB = new Date(b.querySelector("pubDate")?.textContent || "").getTime();
+        return dateB - dateA;
+      });
+      
+      const itemsToProcess = Math.min(sortedItems.length, MAX_NEWS_ITEMS);
+      const newsScripts: NewsScript[] = [];
+      
+      for (let i = 0; i < itemsToProcess; i++) {
+        const item = sortedItems[i];
+        
+        const title = item.querySelector("title")?.textContent || "No title";
+        const description = item.querySelector("description")?.textContent || "";
+        const pubDate = item.querySelector("pubDate")?.textContent || new Date().toUTCString();
+        const link = item.querySelector("link")?.textContent || "#";
+        
+        const contentToAnalyze = description;
+        const combinedText = title + " " + contentToAnalyze;
+        
+        const sentiment = analyzeSentiment(combinedText);
+        const keywords = extractKeywords(combinedText, 3);
+        const readingTimeSeconds = calculateReadingTime(contentToAnalyze);
+        
+        const newsItem = {
+          title,
+          description,
+          fullContent: description,
+          sentiment,
+          keywords,
+          readingTimeSeconds,
+          pubDate,
+          link,
+          sourceName: "ABC News",
+        };
+        
+        const newsScript = await generateNewsScript(newsItem);
+        
+        const scriptData = {
+          title: newsItem.title,
+          content: newsScript,
+          type: 'single',
+          summary: {
+            description: newsItem.description,
+            sentiment: newsItem.sentiment,
+            keywords: newsItem.keywords,
+            readingTimeSeconds: newsItem.readingTimeSeconds,
+            pubDate: newsItem.pubDate,
+            sourceName: newsItem.sourceName,
+            link: newsItem.link
+          }
+        };
+        
+        newsScripts.push(scriptData);
+      }
+      
+      setScripts(newsScripts);
+      setCurrentPage(0); // Reset to first page
+      
+      toast({
+        title: "News Updated",
+        description: `${newsScripts.length} latest news summaries have been refreshed`,
+      });
+    } catch (error) {
+      console.error("Error refreshing news:", error);
+      toast({
+        title: "Refresh Failed",
+        description: "Couldn't refresh the news feed. Please try again later.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-20">
@@ -223,8 +338,17 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">News Summaries</h2>
-        <div className="text-sm text-gray-500">
-          Showing {scripts.length} articles from ABC News
+        <div className="flex items-center gap-3">
+          <div className="text-sm text-gray-500">
+            Showing {scripts.length} latest articles from ABC News
+          </div>
+          <button
+            onClick={refreshNews}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
+          >
+            <Loader2 className="h-3 w-3 mr-1" />
+            Refresh Latest
+          </button>
         </div>
       </div>
       
