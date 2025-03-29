@@ -1,10 +1,17 @@
 
 import { useState, useEffect } from "react";
-import { Loader2, FileText, Copy, Newspaper } from "lucide-react";
+import { Loader2, FileText, Copy, Newspaper, Settings } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { generateNewsScript, analyzeSentiment, extractKeywords, calculateReadingTime, fetchArticleContent } from "@/utils/textAnalysis";
+import ApiKeyForm from "./ApiKeyForm";
+import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface CategorizedNewsListProps {
   selectedCategory: string;
@@ -12,6 +19,7 @@ interface CategorizedNewsListProps {
 
 const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => {
   const [loading, setLoading] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
   const [script, setScript] = useState<{
     title: string, 
     content: string, 
@@ -202,7 +210,21 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">News Summary</h2>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => setShowSettings(!showSettings)}
+        >
+          <Settings className="h-4 w-4 mr-2" />
+          API Settings
+        </Button>
       </div>
+      
+      <Collapsible open={showSettings} onOpenChange={setShowSettings}>
+        <CollapsibleContent>
+          <ApiKeyForm />
+        </CollapsibleContent>
+      </Collapsible>
       
       {!script ? (
         <div className="flex justify-center items-center py-10">

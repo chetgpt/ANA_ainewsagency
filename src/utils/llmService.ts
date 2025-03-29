@@ -1,3 +1,4 @@
+
 /**
  * This file contains utilities for interacting with LLM APIs
  */
@@ -21,6 +22,8 @@ function getApiKey(keyName: string): string | undefined {
   if (!apiKey) {
     apiKey = localStorage.getItem(keyName) || undefined;
   }
+  
+  console.log(`Getting ${keyName}:`, apiKey ? `Found (length: ${apiKey.length})` : "Not found");
   
   return apiKey;
 }
