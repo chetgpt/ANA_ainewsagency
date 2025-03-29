@@ -1,4 +1,3 @@
-
 /**
  * This file contains utilities for interacting with LLM APIs
  */
@@ -77,7 +76,7 @@ export async function analyzeLLM(title: string, content: string): Promise<LLMRes
 // Function to analyze content with Gemini
 async function analyzeWithGemini(title: string, content: string, apiKey: string): Promise<LLMResponse> {
   try {
-    // Updated to use gemini-2.0-flash model
+    // Updated to use gemini-2.0-flash model with structured framework for news analysis but casual output
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
@@ -88,9 +87,56 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
           {
             parts: [
               {
-                text: `You are a news analysis assistant. Analyze the following news article.
+                text: `You are a news analysis assistant with web search capabilities. 
+                Analyze the following news article using this comprehensive framework:
+
+                1. Present Event (Anchor)
+                   - Define: Who, what, when, and where—citing at least one source or piece of data.
+                   - Goal: Establish a clear "anchor" event that everything else revolves around.
+
+                2. Backward Analysis (Causes) with Multiple Layers
+                   - Layered Causes: For each immediate cause, list sub-causes (up to 2–3 layers).
+                   - Assign Probabilities: E.g., "Cause A: 70%," "Sub-cause A1: 50%."
+                   - Fact Basis: Cite relevant info (historical data, reports) for each layer.
+                   - Example: "Major Debt (70%) → CFO Resignation (50%)."
+
+                3. Forward Analysis (Effects) with Multiple Layers
+                   - Layered Outcomes: For each first-level effect, list sub-effects (again, 2–3 layers).
+                   - Assign Probabilities: E.g., "Effect A: 80%," "Sub-effect A1: 40%."
+                   - Fact Basis: Reference known patterns or real-time data.
+                   - Example: "Layoffs (80%) → Union Strikes (40%)."
+
+                4. Rippling Through Probability Chains
+                   - Backward: P(Sub-cause)=P(Main cause)×P(Sub-cause∣Main cause)
+                   - Forward: P(Xn+1)=P(Xn)×P(Xn+1∣Xn)
+                   - Cite: Each step references at least one supporting fact or source.
+
+                5. Comprehensive Impact List (All Affected Fields)
+                   - Collect All Impacts: Generate one consolidated list of every domain, industry, or field affected.
+                   - Result: A "Global Impact" list that justifies how these fields connect to the anchor event.
+
+                6. Additional Questions:
+                   - Who gains money or power from this?
+                   - What previous patterns does this fit into?
+                   - What is NOT being reported?
+
+                USE THIS FRAMEWORK FOR YOUR ANALYSIS, BUT DO NOT STRUCTURE YOUR RESPONSE AROUND IT.
+
+                Instead, write a CASUAL, CONVERSATIONAL summary that:
+                - Uses everyday language a non-expert would understand
+                - Avoids jargon, technical terms, and complex sentences
+                - Explains concepts simply as if talking to a friend
+                - Never mentions the framework sections explicitly (don't say "Present Event" or "Backward Analysis")
+                - Flows naturally between ideas without formal section headers
+                - Includes the key insights from your analysis in an approachable way
+                - Mentions major causes and effects with approximate likelihoods in plain language
+                - Points out who benefits and what patterns this fits
+
+                Use web search to find the most accurate and up-to-date information about this topic.
+                Create a conversational summary that's easy to read and understand (400-500 words).
+                
                 Return a JSON object with the following fields:
-                - summary: A concise 2-3 sentence summary of the key information
+                - summary: A conversational summary based on your framework analysis (400-500 words)
                 - sentiment: Either "positive", "negative", or "neutral"
                 - keywords: An array of 3-5 key terms from the article
                 
@@ -107,6 +153,27 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
           temperature: 0.2,
           maxOutputTokens: 1000,
         },
+        tools: [{
+          functionDeclarations: [{
+            name: "search",
+            description: "Search the web for real-time information",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                query: {
+                  type: "STRING",
+                  description: "The search query"
+                }
+              },
+              required: ["query"]
+            }
+          }]
+        }],
+        toolConfig: {
+          functionCallingConfig: {
+            mode: "AUTO"
+          }
+        }
       }),
     });
 
@@ -160,9 +227,56 @@ async function analyzeWithPerplexity(title: string, content: string, apiKey: str
         messages: [
           {
             role: 'system',
-            content: `You are a news analysis assistant. Analyze the following news article.
+            content: `You are a news analysis assistant with web search capabilities.
+            Analyze the following news article using this comprehensive framework:
+
+            1. Present Event (Anchor)
+               - Define: Who, what, when, and where—citing at least one source or piece of data.
+               - Goal: Establish a clear "anchor" event that everything else revolves around.
+
+            2. Backward Analysis (Causes) with Multiple Layers
+               - Layered Causes: For each immediate cause, list sub-causes (up to 2–3 layers).
+               - Assign Probabilities: E.g., "Cause A: 70%," "Sub-cause A1: 50%."
+               - Fact Basis: Cite relevant info (historical data, reports) for each layer.
+               - Example: "Major Debt (70%) → CFO Resignation (50%)."
+
+            3. Forward Analysis (Effects) with Multiple Layers
+               - Layered Outcomes: For each first-level effect, list sub-effects (again, 2–3 layers).
+               - Assign Probabilities: E.g., "Effect A: 80%," "Sub-effect A1: 40%."
+               - Fact Basis: Reference known patterns or real-time data.
+               - Example: "Layoffs (80%) → Union Strikes (40%)."
+
+            4. Rippling Through Probability Chains
+               - Backward: P(Sub-cause)=P(Main cause)×P(Sub-cause∣Main cause)
+               - Forward: P(Xn+1)=P(Xn+1∣Xn)
+               - Cite: Each step references at least one supporting fact or source.
+
+            5. Comprehensive Impact List (All Affected Fields)
+               - Collect All Impacts: Generate one consolidated list of every domain, industry, or field affected.
+               - Result: A "Global Impact" list that justifies how these fields connect to the anchor event.
+
+            6. Additional Questions:
+               - Who gains money or power from this?
+               - What previous patterns does this fit into?
+               - What is NOT being reported?
+
+            USE THIS FRAMEWORK FOR YOUR ANALYSIS, BUT DO NOT STRUCTURE YOUR RESPONSE AROUND IT.
+
+            Instead, write a CASUAL, CONVERSATIONAL summary that:
+            - Uses everyday language a non-expert would understand
+            - Avoids jargon, technical terms, and complex sentences
+            - Explains concepts simply as if talking to a friend
+            - Never mentions the framework sections explicitly (don't say "Present Event" or "Backward Analysis")
+            - Flows naturally between ideas without formal section headers
+            - Includes the key insights from your analysis in an approachable way
+            - Mentions major causes and effects with approximate likelihoods in plain language
+            - Points out who benefits and what patterns this fits
+
+            Use web search to find the most accurate and up-to-date information about this topic.
+            Create a conversational summary that's easy to read and understand (400-500 words).
+            
             Return a JSON object with the following fields:
-            - summary: A concise 2-3 sentence summary of the key information
+            - summary: A conversational summary based on your framework analysis (400-500 words)
             - sentiment: Either "positive", "negative", or "neutral"
             - keywords: An array of 3-5 key terms from the article`
           },
@@ -312,7 +426,7 @@ export async function generateScriptWithLLM(title: string, content: string): Pro
 // Function to generate script with Gemini
 async function generateScriptWithGemini(title: string, content: string, apiKey: string): Promise<string> {
   try {
-    // Updated Gemini API endpoint to use the latest version
+    // Updated to use structured framework for news analysis but casual output
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
@@ -323,13 +437,45 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
           {
             parts: [
               {
-                text: `You are a news summary assistant. Create a concise summary of the following news article.
-                Use casual, everyday language that's easy to understand for the average reader.
-                Avoid jargon, technical terms, and complex sentences.
-                Explain any complex concepts in simple terms as if you're explaining to a friend.
-                Keep it conversational and use a friendly tone.
-                Focus on the key facts, with no commentary or analysis.
-                Keep it under 200 words and focus on the most important information.
+                text: `You are a news summary assistant with web search capabilities. 
+                Analyze the following news article using this comprehensive framework:
+
+                1. Present Event (Anchor)
+                   - Define: Who, what, when, and where—citing at least one source or piece of data.
+                   - Goal: Establish a clear "anchor" event that everything else revolves around.
+
+                2. Backward Analysis (Causes) with Multiple Layers
+                   - Layered Causes: For each immediate cause, list sub-causes (up to 2–3 layers).
+                   - Assign Probabilities: E.g., "Cause A: 70%," "Sub-cause A1: 50%."
+                   - Fact Basis: Cite relevant info (historical data, reports) for each layer.
+
+                3. Forward Analysis (Effects) with Multiple Layers
+                   - Layered Outcomes: For each first-level effect, list sub-effects (again, 2–3 layers).
+                   - Assign Probabilities: E.g., "Effect A: 80%," "Sub-effect A1: 40%."
+                   - Fact Basis: Reference known patterns or real-time data.
+
+                4. Comprehensive Impact List (All Affected Fields)
+                   - Collect All Impacts: Generate one consolidated list of every domain, industry, or field affected.
+
+                5. Additional Questions:
+                   - Who gains money or power from this?
+                   - What previous patterns does this fit into?
+                   - What is NOT being reported?
+                
+                USE THIS FRAMEWORK FOR YOUR ANALYSIS, BUT DO NOT STRUCTURE YOUR RESPONSE AROUND IT.
+
+                Instead, write a CASUAL, CONVERSATIONAL summary that:
+                - Uses everyday language a non-expert would understand
+                - Avoids jargon, technical terms, and complex sentences
+                - Explains concepts simply as if talking to a friend
+                - Never mentions the framework sections explicitly (don't say "Present Event" or "Backward Analysis")
+                - Flows naturally between ideas without formal section headers
+                - Includes the key insights from your analysis in an approachable way
+                - Mentions major causes and effects with approximate likelihoods in plain language
+                - Points out who benefits and what patterns this fits
+                
+                Use web search to gather the most accurate and current information about this topic.
+                Keep it under 500 words and focus on the most important information in a conversational style.
                 
                 Title: ${title}
                 
@@ -342,6 +488,27 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
           temperature: 0.2,
           maxOutputTokens: 1000,
         },
+        tools: [{
+          functionDeclarations: [{
+            name: "search",
+            description: "Search the web for real-time information",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                query: {
+                  type: "STRING",
+                  description: "The search query"
+                }
+              },
+              required: ["query"]
+            }
+          }]
+        }],
+        toolConfig: {
+          functionCallingConfig: {
+            mode: "AUTO"
+          }
+        }
       }),
     });
 
@@ -379,13 +546,45 @@ async function generateScriptWithPerplexity(title: string, content: string, apiK
         messages: [
           {
             role: 'system',
-            content: `You are a news summary assistant. Create a concise summary of the following news article.
-            Use casual, everyday language that's easy to understand for the average reader.
-            Avoid jargon, technical terms, and complex sentences.
-            Explain any complex concepts in simple terms as if you're explaining to a friend.
-            Keep it conversational and use a friendly tone.
-            Focus on the key facts, with no commentary or analysis.
-            Keep it under 200 words and focus on the most important information.`
+            content: `You are a news summary assistant with web search capabilities. 
+                Analyze the following news article using this comprehensive framework:
+
+                1. Present Event (Anchor)
+                   - Define: Who, what, when, and where—citing at least one source or piece of data.
+                   - Goal: Establish a clear "anchor" event that everything else revolves around.
+
+                2. Backward Analysis (Causes) with Multiple Layers
+                   - Layered Causes: For each immediate cause, list sub-causes (up to 2–3 layers).
+                   - Assign Probabilities: E.g., "Cause A: 70%," "Sub-cause A1: 50%."
+                   - Fact Basis: Cite relevant info (historical data, reports) for each layer.
+
+                3. Forward Analysis (Effects) with Multiple Layers
+                   - Layered Outcomes: For each first-level effect, list sub-effects (again, 2–3 layers).
+                   - Assign Probabilities: E.g., "Effect A: 80%," "Sub-effect A1: 40%."
+                   - Fact Basis: Reference known patterns or real-time data.
+
+                4. Comprehensive Impact List (All Affected Fields)
+                   - Collect All Impacts: Generate one consolidated list of every domain, industry, or field affected.
+
+                5. Additional Questions:
+                   - Who gains money or power from this?
+                   - What previous patterns does this fit into?
+                   - What is NOT being reported?
+                
+                USE THIS FRAMEWORK FOR YOUR ANALYSIS, BUT DO NOT STRUCTURE YOUR RESPONSE AROUND IT.
+
+                Instead, write a CASUAL, CONVERSATIONAL summary that:
+                - Uses everyday language a non-expert would understand
+                - Avoids jargon, technical terms, and complex sentences
+                - Explains concepts simply as if talking to a friend
+                - Never mentions the framework sections explicitly (don't say "Present Event" or "Backward Analysis")
+                - Flows naturally between ideas without formal section headers
+                - Includes the key insights from your analysis in an approachable way
+                - Mentions major causes and effects with approximate likelihoods in plain language
+                - Points out who benefits and what patterns this fits
+                
+                Use web search to gather the most accurate and current information about this topic.
+                Keep it under 500 words and focus on the most important information in a conversational style.`
           },
           {
             role: 'user',
