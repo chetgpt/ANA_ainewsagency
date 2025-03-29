@@ -64,11 +64,19 @@ const NewsItem = ({
           {summary ? (
             <div className="mb-3">
               <div className="text-xs font-medium text-green-700 mb-1">AI Summary:</div>
-              <CardDescription className="line-clamp-3">{summary}</CardDescription>
+              <CardDescription className="line-clamp-4">{summary}</CardDescription>
             </div>
           ) : (
             <div className="mb-3">
-              <div className="text-xs font-medium text-gray-700 mb-1">No summary available yet</div>
+              <div className="text-xs font-medium text-gray-700 mb-1">
+                {isSummarized ? "Summary generation failed" : "Summary not yet generated"}
+              </div>
+              <CardDescription className="line-clamp-3 text-gray-500 italic">
+                {isSummarized ? 
+                  "Unable to generate a summary for this article." : 
+                  "Click 'Generate Summaries' to create AI summaries."
+                }
+              </CardDescription>
             </div>
           )}
         </CardContent>

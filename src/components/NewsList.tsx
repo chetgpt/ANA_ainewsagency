@@ -205,26 +205,37 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     });
   };
 
-  // Background summarization function
+  // Background summarization function - fixed to properly check item status
   const summarizeItemInBackground = async (itemId: string, currentItems: CachedNewsItem[]): Promise<CachedNewsItem | null> => {
     const item = currentItems.find(i => i.id === itemId);
-    // Only skip if the item doesn't exist, is already being summarized, or has a valid summary
-    if (!item || item.isSummarizing) {
-      console.log(`Skipping summarization for item ${itemId}: Not found or in progress.`);
-      return null; // Return null if no action needed
+    
+    if (!item) {
+      console.log(`Skipping summarization for item ${itemId}: Item not found.`);
+      return null;
     }
     
-    // If marked as summarized but doesn't have a summary, we should retry
-    if (item.isSummarized && !item.summary) {
-      console.log(`Item ${itemId} was marked as summarized but has no summary. Retrying.`);
-      // Continue with summarization instead of returning
-    } else if (item.isSummarized && item.summary) {
+    if (item.isSummarizing) {
+      console.log(`Skipping summarization for item ${itemId}: Already in progress.`);
+      return null;
+    }
+    
+    // Only skip if the item has already been summarized AND has a summary
+    if (item.isSummarized && item.summary) {
       console.log(`Skipping summarization for item ${itemId}: Already has a summary.`);
       return null;
+    }
+    
+    // Force summarization for items that are marked as summarized but have no summary
+    if (item.isSummarized && !item.summary) {
+      console.log(`Item ${itemId} was marked as summarized but has no summary. Retrying.`);
     }
 
     try {
       console.log(`Summarizing item ${itemId}: ${item.title}`);
+      
+      // Set item as summarizing before starting the process
+      updateNewsItem({ ...item, isSummarizing: true });
+      
       const fullContent = await fetchArticleContent(item.link);
       const contentToAnalyze = fullContent || item.description;
       
@@ -241,9 +252,10 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       
       // Try LLM analysis
       try {
+        console.log(`Starting LLM analysis for item ${itemId} with content length: ${contentToAnalyze.length}`);
         const llmResult = await analyzeLLM(item.title, contentToAnalyze);
         
-        console.log(`LLM summarization successful for item ${itemId}`);
+        console.log(`LLM summarization successful for item ${itemId}. Summary: ${llmResult.summary.substring(0, 50)}...`);
         return {
           ...item,
           summary: llmResult.summary,
@@ -261,9 +273,12 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
         const combinedText = item.title + " " + contentToAnalyze;
         const fallbackSentiment = analyzeSentiment(combinedText);
         const fallbackKeywords = extractKeywords(combinedText, 3);
+        
         // Generate a simple fallback summary (e.g., first few sentences)
         const sentences = contentToAnalyze.split(/\.\s+/);
         const fallbackSummary = sentences.slice(0, 3).join(". ") + (sentences.length > 3 ? "." : "");
+        
+        console.log(`Generated fallback summary for item ${itemId}: ${fallbackSummary.substring(0, 50)}...`);
         
         return {
           ...item,
@@ -289,7 +304,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     }
   };
 
-  // Process summarization queue with limited concurrency
+  // Process summarization queue with limited concurrency - fixed to properly update state
   const processSummarizationQueue = async (
     itemIds: string[],
     currentItems: CachedNewsItem[]
@@ -297,16 +312,12 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     const MAX_CONCURRENT = 2; // Process up to 2 items at once
     console.log(`Starting summarization queue for ${itemIds.length} items.`);
     
-    // Filter out IDs that might already be summarized or are currently summarizing
+    // Filter out IDs that are already being summarized
     const itemsToProcess = itemIds.filter(id => {
       const item = currentItems.find(i => i.id === id);
-      // Process if item exists and either:
-      // 1. Not summarized
-      // 2. Is marked as summarized but has no summary
-      // 3. Not currently being summarized
-      return item && 
-             (!item.isSummarized || (item.isSummarized && !item.summary)) && 
-             !item.isSummarizing;
+      // Process if item exists and is not already being summarized
+      // Include items that are marked as summarized but have no summary (needs retry)
+      return item && !item.isSummarizing && (!item.isSummarized || (item.isSummarized && !item.summary));
     });
     
     if (itemsToProcess.length === 0) {
@@ -317,13 +328,23 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     console.log(`Processing ${itemsToProcess.length} items in batches of ${MAX_CONCURRENT}.`);
     
     // Update status to isSummarizing = true before starting the batch
-    itemsToProcess.forEach(itemId => {
+    for (const itemId of itemsToProcess) {
       const item = currentItems.find(i => i.id === itemId);
       if (item) {
-        updateNewsItem({ ...item, isSummarizing: true });
+        console.log(`Marking item ${itemId} as summarizing...`);
+        // Update each item's status individually to ensure state is correctly set
+        setNewsItems(prevItems => {
+          const updatedItems = prevItems.map(prevItem => 
+            prevItem.id === itemId ? { ...prevItem, isSummarizing: true } : prevItem
+          );
+          return updatedItems;
+        });
         setSummarizingCount(prev => prev + 1);
       }
-    });
+    }
+    
+    // Small delay to ensure React state updates properly
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     // Process in batches
     for (let i = 0; i < itemsToProcess.length; i += MAX_CONCURRENT) {
@@ -331,21 +352,25 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       console.log(`Processing batch: ${batchIds.join(', ')}`);
       
       // Get the latest state for each call to summarizeItemInBackground
-      const latestItems = newsItems;
+      const latestItems = await new Promise<CachedNewsItem[]>(resolve => {
+        setNewsItems(current => {
+          resolve(current);
+          return current;
+        });
+      });
       
       // Process the batch
-      const results = await Promise.all(
-        batchIds.map(itemId => summarizeItemInBackground(itemId, latestItems))
-      );
+      const promises = batchIds.map(itemId => summarizeItemInBackground(itemId, latestItems));
+      const results = await Promise.all(promises);
       
       // Update state for items that were successfully processed
-      results.forEach(updatedItem => {
+      for (const updatedItem of results) {
         if (updatedItem) {
           console.log(`Updating state for summarized item ${updatedItem.id}`);
           updateNewsItem(updatedItem);
           setSummarizingCount(prev => Math.max(0, prev - 1));
         }
-      });
+      }
       
       // Small delay between batches to avoid overwhelming the API
       if (i + MAX_CONCURRENT < itemsToProcess.length) {
@@ -470,7 +495,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       
       // Use existing state for comparison
       const currentItemsState = newsItems.length > 0 ? newsItems : (cachedNews?.items || []);
-      const currentItemsMap = new Map(currentItemsState.map(item => [item.id, item]));
+      const currentItemsMap = new Map(currentItemsState.map(item => [item.id, item],));
       
       // Process each RSS item
       items.forEach((item, index) => {
@@ -595,7 +620,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     }
   };
 
-  // Define a function to sort news items for display prioritization
+  // Define a function to sort news items for display prioritization - improved to better prioritize summarized items
   const sortedNewsItems = [...newsItems].sort((a, b) => {
     // First, prioritize items with summaries
     if (a.summary && !b.summary) return -1;
@@ -609,10 +634,10 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
   });
   
-  // Force a resummary of all items
+  // Force a resummary of all items - improved to catch more items needing summaries
   const resummaryAllItems = () => {
     const itemsToProcess = newsItems
-      .filter(item => !item.summary || !item.isSummarized)
+      .filter(item => !item.isSummarizing && (!item.summary || !item.isSummarized))
       .map(item => item.id);
       
     if (itemsToProcess.length > 0) {
