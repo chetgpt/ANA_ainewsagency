@@ -1,7 +1,6 @@
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDistanceToNow } from "date-fns";
-import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 
 export interface NewsItemProps {
@@ -23,35 +22,14 @@ export interface NewsItemProps {
 
 const NewsItem = ({ 
   title, 
-  description, 
   pubDate, 
   link, 
   sourceName,
-  sentiment,
-  keywords,
-  readingTimeSeconds,
   summary,
-  llmSentiment,
-  llmKeywords,
   isSummarized = true,
   isSummarizing = false
 }: NewsItemProps) => {
   const formattedDate = formatDistanceToNow(new Date(pubDate), { addSuffix: true });
-  
-  // Define sentiment color - prefer LLM sentiment if available
-  const activeSentiment = llmSentiment || sentiment;
-  const sentimentColor = {
-    positive: "bg-green-100 text-green-800",
-    negative: "bg-red-100 text-red-800",
-    neutral: "bg-blue-100 text-blue-800"
-  }[activeSentiment];
-  
-  // Use LLM keywords if available, otherwise use basic keywords
-  const activeKeywords = (llmKeywords && llmKeywords.length > 0) ? llmKeywords : keywords;
-  
-  // Format display text
-  const sentimentLabel = activeSentiment.charAt(0).toUpperCase() + activeSentiment.slice(1);
-  const sentimentSource = llmSentiment ? "AI" : "Basic";
   
   // Determine card styling based on summarization status
   const cardClasses = `h-full transition-shadow duration-200 ${
@@ -93,24 +71,6 @@ const NewsItem = ({
               <div className="text-xs font-medium text-gray-700 mb-1">No summary available yet</div>
             </div>
           )}
-          
-          <div className="mt-3 flex flex-wrap gap-1">
-            <Badge variant="outline" className={sentimentColor}>
-              {sentimentLabel} ({sentimentSource})
-            </Badge>
-            
-            {activeKeywords.map((keyword, index) => (
-              <Badge key={index} variant="outline" className="bg-gray-100">
-                {keyword}
-              </Badge>
-            ))}
-            
-            <Badge variant="outline" className="bg-gray-100 text-gray-800">
-              {readingTimeSeconds < 60 
-                ? `${readingTimeSeconds}s read` 
-                : `${Math.floor(readingTimeSeconds / 60)}m read`}
-            </Badge>
-          </div>
         </CardContent>
         <CardFooter className="pt-0 text-xs text-gray-500">
           {formattedDate}
