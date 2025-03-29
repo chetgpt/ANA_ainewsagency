@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Loader2, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { generateNewsScript } from "@/utils/textAnalysis";
+import { generateNewsScript, analyzeSentiment, extractKeywords, calculateReadingTime } from "@/utils/textAnalysis";
 
 interface CategorizedNewsListProps {
   selectedCategory: string;
@@ -14,50 +14,113 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   const [script, setScript] = useState<{title: string, content: string, type: string} | null>(null);
   const { toast } = useToast();
 
-  // Generate a sample news script
   useEffect(() => {
-    const generateSampleScript = () => {
+    const fetchSingleNewsItem = async () => {
       setLoading(true);
       
-      // Sample news item with predefined data
-      const sampleNewsItem = {
-        title: "Sample Technology News Story",
-        description: "This is a sample news story about recent developments in technology that is meant to demonstrate the script generation feature.",
-        sentiment: "positive" as const,
-        keywords: ["technology", "innovation", "development"],
-        readingTimeSeconds: 180,
-        pubDate: new Date().toUTCString(),
-        link: "#",
-        sourceName: "NewsHub",
-      };
-      
-      // Generate script for the sample news item
-      const newsScript = generateNewsScript(sampleNewsItem);
-      
-      const scriptData = {
-        title: sampleNewsItem.title,
-        content: newsScript,
-        type: 'single'
-      };
-      
-      setScript(scriptData);
-      setLoading(false);
-      
-      toast({
-        title: "Script Generated",
-        description: "A sample news script has been created",
-      });
+      try {
+        // Use CNN's top stories RSS feed with a CORS proxy
+        const corsProxy = "https://api.allorigins.win/raw?url=";
+        const rssUrl = "http://rss.cnn.com/rss/cnn_topstories.rss";
+        const response = await fetch(`${corsProxy}${encodeURIComponent(rssUrl)}`);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch RSS feed: ${response.status}`);
+        }
+        
+        const data = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(data, "text/xml");
+        
+        // Get the first item from the feed
+        const firstItem = xmlDoc.querySelector("item");
+        
+        if (!firstItem) {
+          throw new Error("No items found in RSS feed");
+        }
+        
+        // Extract the item data
+        const title = firstItem.querySelector("title")?.textContent || "No title";
+        const description = firstItem.querySelector("description")?.textContent || "";
+        const pubDate = firstItem.querySelector("pubDate")?.textContent || new Date().toUTCString();
+        const link = firstItem.querySelector("link")?.textContent || "#";
+        
+        // Perform simple analysis
+        const combinedText = title + " " + description;
+        const sentiment = analyzeSentiment(combinedText);
+        const keywords = extractKeywords(combinedText, 3);
+        const readingTimeSeconds = calculateReadingTime(description);
+        
+        // Create a news item object with the required information
+        const newsItem = {
+          title,
+          description,
+          sentiment,
+          keywords,
+          readingTimeSeconds,
+          pubDate,
+          link,
+          sourceName: "CNN",
+        };
+        
+        // Generate a script for the news item
+        const newsScript = generateNewsScript(newsItem);
+        
+        const scriptData = {
+          title: newsItem.title,
+          content: newsScript,
+          type: 'single'
+        };
+        
+        setScript(scriptData);
+        
+        toast({
+          title: "Script Generated",
+          description: "News script has been created from CNN feed",
+        });
+      } catch (error) {
+        console.error("Error fetching news:", error);
+        
+        // Fallback to sample data if fetching fails
+        const sampleNewsItem = {
+          title: "Sample Technology News Story",
+          description: "This is a sample news story about recent developments in technology that is meant to demonstrate the script generation feature.",
+          sentiment: "positive" as const,
+          keywords: ["technology", "innovation", "development"],
+          readingTimeSeconds: 180,
+          pubDate: new Date().toUTCString(),
+          link: "#",
+          sourceName: "NewsHub",
+        };
+        
+        const newsScript = generateNewsScript(sampleNewsItem);
+        
+        const scriptData = {
+          title: sampleNewsItem.title,
+          content: newsScript,
+          type: 'single'
+        };
+        
+        setScript(scriptData);
+        
+        toast({
+          title: "Using Sample Data",
+          description: "Couldn't fetch news, using sample data instead",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
     };
     
-    // Generate the sample script
-    generateSampleScript();
-  }, []);
+    fetchSingleNewsItem();
+  }, [toast]);
 
   if (loading) {
     return (
       <div className="flex justify-center items-center py-20">
         <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-        <span className="ml-2 text-gray-600">Generating sample news script...</span>
+        <span className="ml-2 text-gray-600">Generating news script...</span>
       </div>
     );
   }
