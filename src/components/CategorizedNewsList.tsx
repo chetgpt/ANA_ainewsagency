@@ -2,9 +2,8 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { checkApiAvailability } from "@/utils/llmService";
-import { generateNewsScript } from "@/utils/textAnalysis";
 import NewsLoadingState from "@/components/news/NewsLoadingState";
-import NewsScriptCard from "@/components/news/NewsScriptCard";
+import NewsCarousel from "@/components/news/NewsCarousel";
 import { fetchNewsArticle, processNewsArticle, getSampleNewsData } from "@/services/newsService";
 
 interface CategorizedNewsListProps {
@@ -17,10 +16,11 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     geminiAvailable: boolean;
     perplexityAvailable: boolean;
   }>({ geminiAvailable: false, perplexityAvailable: false });
-  const [script, setScript] = useState<{
-    title: string, 
-    content: string, 
-    type: string,
+  const [scripts, setScripts] = useState<Array<{
+    id: string;
+    title: string;
+    content: string;
+    type: string;
     summary?: {
       description: string;
       sentiment: "positive" | "negative" | "neutral";
@@ -29,7 +29,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
       pubDate: string;
       sourceName: string;
     }
-  } | null>(null);
+  }>>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -39,17 +39,20 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   }, []);
 
   useEffect(() => {
-    const fetchSingleNewsItem = async () => {
+    const fetchInitialNewsItem = async () => {
       setLoading(true);
       
       try {
-        // Fetch news article from RSS feed
+        // Fetch first news article from RSS feed
         const article = await fetchNewsArticle();
         
         // Process the article to generate script
         const scriptData = await processNewsArticle(article);
         
-        setScript(scriptData);
+        setScripts([{
+          id: crypto.randomUUID(),
+          ...scriptData
+        }]);
         
         toast({
           title: "News Summary Generated",
@@ -62,41 +65,62 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         const sampleNewsItem = getSampleNewsData();
         
         // Generate script with sample data
-        const generateFallbackScript = async () => {
-          const newsScript = await generateNewsScript(sampleNewsItem);
-          console.log("Generated fallback script with sample data");
+        try {
+          const scriptData = await processNewsArticle(sampleNewsItem);
           
-          const scriptData = {
-            title: sampleNewsItem.title,
-            content: newsScript,
-            type: 'single',
-            summary: {
-              description: sampleNewsItem.description,
-              sentiment: sampleNewsItem.sentiment,
-              keywords: sampleNewsItem.keywords,
-              readingTimeSeconds: sampleNewsItem.readingTimeSeconds,
-              pubDate: sampleNewsItem.pubDate,
-              sourceName: sampleNewsItem.sourceName
-            }
-          };
-          
-          setScript(scriptData);
-        };
-        
-        generateFallbackScript();
-        
-        toast({
-          title: "Using Sample Data",
-          description: "Couldn't fetch news, using sample data instead",
-          variant: "destructive"
-        });
+          setScripts([{
+            id: crypto.randomUUID(),
+            ...scriptData
+          }]);
+        } catch (fallbackError) {
+          console.error("Error with fallback data:", fallbackError);
+          toast({
+            title: "Error Loading News",
+            description: "Could not generate news summary. Please try again later.",
+            variant: "destructive"
+          });
+        }
       } finally {
         setLoading(false);
       }
     };
     
-    fetchSingleNewsItem();
+    fetchInitialNewsItem();
   }, [toast]);
+
+  const loadNextNews = async () => {
+    try {
+      // Show loading state for the next item
+      toast({
+        title: "Loading next news...",
+        description: "Please wait while we fetch the next article",
+      });
+      
+      // Fetch next news article
+      const article = await fetchNewsArticle();
+      
+      // Process the article
+      const scriptData = await processNewsArticle(article);
+      
+      // Add the new script to our collection
+      setScripts(prev => [...prev, {
+        id: crypto.randomUUID(),
+        ...scriptData
+      }]);
+      
+      toast({
+        title: "New Article Loaded",
+        description: "Swipe to view the new article",
+      });
+    } catch (error) {
+      console.error("Error loading next news:", error);
+      toast({
+        title: "Error Loading Next Article",
+        description: "Could not load the next article. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
 
   if (loading) {
     return <NewsLoadingState />;
@@ -108,12 +132,10 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         <h2 className="text-xl font-semibold">News Summary</h2>
       </div>
       
-      {!script ? (
+      {scripts.length === 0 ? (
         <NewsLoadingState message="Generating news summary..." />
       ) : (
-        <div className="grid grid-cols-1 gap-6 py-4">
-          <NewsScriptCard script={script} />
-        </div>
+        <NewsCarousel scripts={scripts} onLoadMore={loadNextNews} />
       )}
     </div>
   );

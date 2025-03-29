@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface NewsScriptCardProps {
   script: {
+    id?: string;
     title: string;
     content: string;
     type: string;
@@ -33,7 +34,7 @@ const NewsScriptCard = ({ script }: NewsScriptCardProps) => {
   };
 
   return (
-    <Card className="h-full hover:shadow-md transition-shadow duration-200">
+    <Card className="h-full hover:shadow-md transition-shadow duration-200 w-full">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-bold flex items-center gap-2">
           <FileText className="h-5 w-5" />
@@ -41,10 +42,13 @@ const NewsScriptCard = ({ script }: NewsScriptCardProps) => {
         </CardTitle>
         <div className="text-xs text-gray-500 mt-1">
           {script.type === 'group' ? 'Multiple Related Articles' : 'Complete Summary'}
+          {script.summary && (
+            <span className="ml-2">• {new Date(script.summary.pubDate).toLocaleDateString()}</span>
+          )}
         </div>
       </CardHeader>
       <CardContent>
-        <div className="bg-gray-50 p-4 rounded-md border mb-4">
+        <div className="bg-gray-50 p-4 rounded-md border mb-4 max-h-[400px] overflow-y-auto">
           <div className="whitespace-pre-wrap text-sm">{script.content}</div>
         </div>
         <div className="flex justify-end">
