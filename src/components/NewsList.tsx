@@ -42,13 +42,6 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
   // Use the provided feedUrl or get it from currentSource
   const activeFeedUrl = feedUrl || currentSource.feedUrl;
 
-  // Update parent component with current status
-  useEffect(() => {
-    if (onStatusUpdate) {
-      onStatusUpdate(summarizingCount, lastUpdated);
-    }
-  }, [summarizingCount, lastUpdated, onStatusUpdate]);
-
   // Define a function to check if a date is within the last day
   const isWithinLastDay = (dateString: string): boolean => {
     const pubDate = new Date(dateString);
@@ -348,6 +341,20 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     console.log("Finished summarization queue.");
   };
 
+  // Force a refresh on initial load - don't use cache
+  useEffect(() => {
+    console.log("*** INITIAL LOAD: Forcing refresh of RSS feed ***");
+    fetchRssFeed(true); // Force refresh on initial load
+  }, []); // Empty dependency array means this only runs once
+
+  // When activeFeedUrl changes, fetch the new feed
+  useEffect(() => {
+    if (activeFeedUrl) {
+      console.log(`Feed URL changed to: ${activeFeedUrl}, fetching new data...`);
+      fetchRssFeed();
+    }
+  }, [activeFeedUrl]);
+
   const fetchRssFeed = async (forceRefresh = false) => {
     // Try to load from cache first, unless force refresh is requested
     const cachedNews = !forceRefresh ? loadCachedNews() : null;
@@ -384,6 +391,8 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
       
+      // Debug fetch status with clearer logs
+      console.log("Starting fetch request...");
       const response = await fetch(fullUrl, { 
         signal: controller.signal,
         headers: {
@@ -392,23 +401,24 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       });
       clearTimeout(timeoutId);
       
-      console.log(`RSS Feed Response status: ${response.status}`);
+      console.log(`RSS Feed Response status: ${response.status}, statusText: ${response.statusText}`);
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch RSS feed: ${response.status}`);
+        throw new Error(`Failed to fetch RSS feed: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.text();
       console.log(`RSS data received, length: ${data.length} characters`);
       
       if (data.length < 100) {
-        console.warn(`Suspiciously short RSS data: "${data.substring(0, 100)}..."`);
+        console.warn(`Suspiciously short RSS data: "${data}"`);
         throw new Error("Received invalid or empty RSS feed data");
       }
       
       // Log the first part of the response for debugging
       console.log(`RSS data preview: "${data.substring(0, 200)}..."`);
       
+      // Try parsing as XML
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(data, "text/xml");
       
@@ -420,9 +430,11 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
         throw new Error("Failed to parse RSS feed: Invalid XML format");
       }
       
+      // Check if we have a real RSS feed
       const channelTitle = xmlDoc.querySelector("channel > title")?.textContent;
       console.log(`RSS Channel title: ${channelTitle || "Not found"}`);
       
+      // Check if we have any items
       const items = xmlDoc.querySelectorAll("item");
       console.log(`Found ${items.length} items in the RSS feed`);
       
@@ -567,11 +579,6 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       });
     }
   };
-
-  useEffect(() => {
-    // Whenever the activeFeedUrl changes, try to load from cache or fetch fresh data
-    fetchRssFeed();
-  }, [activeFeedUrl]); // This will trigger when either the feedUrl prop or currentSource changes
 
   // Define a function to sort news items for display prioritization
   const sortedNewsItems = [...newsItems].sort((a, b) => {
