@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Loader2, FileText, Copy, Newspaper } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -17,7 +18,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     geminiAvailable: boolean;
     perplexityAvailable: boolean;
   }>({ geminiAvailable: false, perplexityAvailable: false });
-  const [script, setScript<{
+  const [script, setScript] = useState<{
     title: string, 
     content: string, 
     type: string,
