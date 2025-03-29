@@ -42,7 +42,7 @@ const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
     <div className="relative">
       <Carousel
         className="w-full"
-        onSelect={(index) => {
+        onSelect={(index: number) => {
           setCurrentIndex(index);
           handleReachEnd(index);
         }}
