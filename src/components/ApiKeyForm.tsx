@@ -73,8 +73,8 @@ const ApiKeyForm = () => {
     setTestResult(null);
     
     try {
-      // Updated Gemini API endpoint to use the latest version
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${geminiKey}`, {
+      // Updated to use gemini-2.0-flash model
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
