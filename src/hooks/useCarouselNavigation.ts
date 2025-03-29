@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 
 interface UseCarouselNavigationProps {
@@ -9,7 +9,11 @@ interface UseCarouselNavigationProps {
 
 export function useCarouselNavigation({ scripts, onLoadMore }: UseCarouselNavigationProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false });
+  const [emblaRef, emblaApi] = useEmblaCarousel({ 
+    loop: false,
+    dragFree: false,
+    containScroll: "keepSnaps"
+  });
   const [isLoading, setIsLoading] = useState(false);
   const previousScriptsLength = useRef(scripts.length);
 
@@ -33,6 +37,7 @@ export function useCarouselNavigation({ scripts, onLoadMore }: UseCarouselNaviga
 
     const onSelect = () => {
       const newIndex = emblaApi.selectedScrollSnap();
+      console.log("Carousel selected index:", newIndex);
       setCurrentIndex(newIndex);
       handleReachEnd(newIndex);
     };
@@ -45,7 +50,7 @@ export function useCarouselNavigation({ scripts, onLoadMore }: UseCarouselNaviga
     return () => {
       emblaApi.off("select", onSelect);
     };
-  }, [emblaApi, scripts.length]);
+  }, [emblaApi, scripts.length, onLoadMore]);
 
   // Handle updates to scripts array
   useEffect(() => {
@@ -69,14 +74,16 @@ export function useCarouselNavigation({ scripts, onLoadMore }: UseCarouselNaviga
   }, [scripts.length, emblaApi]);
 
   // Manually handle next/previous navigation
-  const handlePrevious = () => {
+  const handlePrevious = useCallback(() => {
     if (emblaApi) {
+      console.log("Scrolling to previous slide");
       emblaApi.scrollPrev();
     }
-  };
+  }, [emblaApi]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (emblaApi) {
+      console.log("Scrolling to next slide");
       emblaApi.scrollNext();
       
       // If we're moving to the last slide, preload more content
@@ -85,7 +92,7 @@ export function useCarouselNavigation({ scripts, onLoadMore }: UseCarouselNaviga
         handleReachEnd(newIndex);
       }
     }
-  };
+  }, [emblaApi, scripts.length]);
 
   return {
     emblaRef,

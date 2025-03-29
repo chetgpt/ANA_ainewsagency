@@ -61,19 +61,21 @@ const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
         </CarouselContent>
         
         <div className="flex justify-center mt-4 gap-2">
-          <CarouselPrevious 
-            className="relative left-0 right-0 h-8 w-8 border-gray-200"
+          <button 
+            className="flex items-center justify-center h-8 w-8 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
             onClick={handlePrevious}
+            aria-label="Previous slide"
           >
             <ChevronLeft className="h-4 w-4" />
-          </CarouselPrevious>
+          </button>
           
-          <CarouselNext 
-            className="relative left-0 right-0 h-8 w-8 border-gray-200"
+          <button 
+            className="flex items-center justify-center h-8 w-8 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
             onClick={handleNext}
+            aria-label="Next slide"
           >
             <ChevronRight className="h-4 w-4" />
-          </CarouselNext>
+          </button>
         </div>
       </Carousel>
     </div>
