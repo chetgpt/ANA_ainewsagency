@@ -42,11 +42,6 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
         const { items, timestamp } = JSON.parse(cachedData);
         setNewsItems(items);
         setLastUpdated(new Date(timestamp));
-        setLoading(false);
-        toast({
-          title: "Loaded from cache",
-          description: `Showing cached news from ${new Date(timestamp).toLocaleString()}`,
-        });
         return true;
       }
     } catch (err) {
@@ -89,11 +84,6 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
   };
 
   const fetchRssFeed = async (forceRefresh = false) => {
-    // Try to load from cache first, unless force refresh is requested
-    if (!forceRefresh && loadCachedNews()) {
-      return;
-    }
-
     try {
       setLoading(true);
       
@@ -174,22 +164,32 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
       setLoading(false);
       setError("");
       
-      if (forceRefresh) {
-        toast({
-          title: "News updated",
-          description: "Latest news has been loaded.",
-        });
-      }
+      toast({
+        title: "News updated",
+        description: "Latest news has been loaded.",
+      });
     } catch (err) {
       console.error("Error fetching RSS feed:", err);
-      setError("Failed to load news. Please try again later.");
-      setLoading(false);
+      
+      // If fetch fails, try to load from cache as fallback
+      if (!forceRefresh && loadCachedNews()) {
+        toast({
+          title: "Using cached news",
+          description: "Couldn't fetch fresh news. Showing cached data instead.",
+        });
+        setLoading(false);
+      } else {
+        setError("Failed to load news. Please try again later.");
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    // Whenever the activeFeedUrl changes, try to load from cache or fetch fresh data
+    // Always fetch fresh data on initial load or when source changes
     fetchRssFeed();
+    
+    // If the fetch fails, the fetchRssFeed function will try to load from cache
   }, [activeFeedUrl]); // This will trigger when either the feedUrl prop or currentSource changes
 
   if (loading) {
