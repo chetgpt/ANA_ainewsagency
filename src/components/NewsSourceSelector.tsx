@@ -9,8 +9,14 @@ export interface NewsSource {
   feedUrl: string;
 }
 
-// Empty news sources array
-export const NEWS_SOURCES: NewsSource[] = [];
+// Add CNN as a reliable news source
+export const NEWS_SOURCES: NewsSource[] = [
+  {
+    name: "CNN",
+    url: "https://www.cnn.com",
+    feedUrl: "http://rss.cnn.com/rss/cnn_topstories.rss"
+  }
+];
 
 interface NewsSourceSelectorProps {
   currentSource: NewsSource;
@@ -31,7 +37,7 @@ const NewsSourceSelector = ({ currentSource, onSourceChange }: NewsSourceSelecto
         }}
       >
         <SelectTrigger className="w-[240px]">
-          <SelectValue placeholder="No news sources available" />
+          <SelectValue placeholder="Select a news source" />
         </SelectTrigger>
         <SelectContent>
           {NEWS_SOURCES.map((source) => (

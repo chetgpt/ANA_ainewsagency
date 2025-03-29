@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import NewsHeader from "@/components/NewsHeader";
 import NewsList from "@/components/NewsList";
@@ -90,23 +91,26 @@ const Index = () => {
 
   // Force a console.log of debug info
   useEffect(() => {
-    console.log(`NewsHub Application Starting - All Sources Version`);
+    console.log(`NewsHub Application Starting - CNN News`);
     console.log("User Agent:", navigator.userAgent);
     console.log("Window Size:", window.innerWidth, "x", window.innerHeight);
   }, []);
+  
+  // Get the first news source for initial display
+  const currentSource = NEWS_SOURCES.length > 0 ? NEWS_SOURCES[0] : null;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <NewsHeader 
-        sourceName="No News Sources" 
-        sourceUrl="#" 
+        sourceName={currentSource?.name || "CNN News"} 
+        sourceUrl={currentSource?.url || "#"} 
         isProcessing={summarizingCount > 0}
         processingCount={summarizingCount}
         lastUpdated={lastUpdated}
       />
       <main className="container mx-auto px-4 py-4 flex-grow">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">No RSS Feeds Configured</h2>
+          <h2 className="text-2xl font-bold">Latest News</h2>
           <div className="flex items-center space-x-4">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -167,21 +171,21 @@ const Index = () => {
               )}
             </div>
             
-            <p>No RSS sources configured</p>
+            <p>Using CNN News RSS feed</p>
             <p>Check the browser console (F12) for detailed logs.</p>
           </div>
         )}
         
-        <div className="bg-white shadow rounded-lg p-6 text-center">
-          <h3 className="text-xl mb-4">No RSS Feeds Available</h3>
-          <p className="text-gray-600 mb-4">
-            All RSS feeds have been removed from the application.
-          </p>
-        </div>
+        {currentSource && (
+          <NewsList 
+            feedUrl={currentSource.feedUrl} 
+            onStatusUpdate={handleStatusUpdate} 
+          />
+        )}
       </main>
       <footer className="bg-gray-100 border-t border-gray-200 py-4">
         <div className="container mx-auto px-4 text-center text-sm text-gray-600">
-          &copy; {new Date().getFullYear()} NewsHub - No RSS Feeds Configured
+          &copy; {new Date().getFullYear()} NewsHub - CNN News Feed
         </div>
       </footer>
     </div>

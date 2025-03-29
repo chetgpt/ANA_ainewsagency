@@ -76,13 +76,10 @@ const NewsItem = ({
           ) : (
             <div className="mb-3">
               <div className="text-xs font-medium text-gray-700 mb-1">
-                {isSummarized ? "No content available" : "No RSS feeds configured"}
+                {isSummarized ? "Original Description:" : "Description:"}
               </div>
-              <CardDescription className="line-clamp-3 text-gray-500 italic">
-                {isSummarized ? 
-                  "No content is available to display." : 
-                  "Please add RSS feeds to begin seeing content."
-                }
+              <CardDescription className="line-clamp-3">
+                {description || "No description available."}
               </CardDescription>
             </div>
           )}
