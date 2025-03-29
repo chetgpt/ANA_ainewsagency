@@ -47,9 +47,6 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(data, "text/xml");
         
-        // Log the entire parsed XML structure for debugging
-        console.log("Parsed XML document:", xmlDoc);
-        
         // Get all items from the feed for debugging
         const allItems = xmlDoc.querySelectorAll("item");
         console.log(`Found ${allItems.length} items in the RSS feed`);
@@ -60,8 +57,6 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         if (!firstItem) {
           throw new Error("No items found in RSS feed");
         }
-        
-        console.log("First item found in RSS feed:", firstItem);
         
         // Extract the item data
         const title = firstItem.querySelector("title")?.textContent || "No title";
@@ -132,19 +127,19 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         setScript(scriptData);
         
         toast({
-          title: "News Script Generated",
-          description: "A focused news script has been created from the latest CNN feed",
+          title: "News Summary Generated",
+          description: "A comprehensive news summary has been created",
         });
       } catch (error) {
         console.error("Error fetching news:", error);
         
         // Fallback to sample data if fetching fails
         const sampleNewsItem = {
-          title: "Tech Innovation Accelerates in Renewable Energy Sector",
-          description: "Leading tech companies have announced significant investments in renewable energy technologies, promising to revolutionize the industry within the next decade. These advancements focus on improving efficiency and reducing costs in solar and wind power generation.",
-          fullContent: "Leading technology companies including Google, Microsoft, and Tesla have announced major initiatives to accelerate innovation in the renewable energy sector. These investments, totaling over $15 billion, will focus on improving efficiency in solar panel production, enhancing wind turbine technology, and developing new energy storage solutions. Industry analysts predict these advancements could reduce the cost of renewable energy by up to 40% within the next decade, making it more accessible and affordable for consumers and businesses alike. The initiatives also include partnerships with research institutions and startups to explore breakthrough technologies that could fundamentally transform how we generate, store, and distribute clean energy. Environmental experts have praised these commitments as critical steps toward addressing climate change and reducing dependence on fossil fuels.",
-          sentiment: "positive" as const,
-          keywords: ["technology innovation", "renewable energy", "sustainable development"],
+          title: "Fox News to pay $787 million in Dominion settlement",
+          description: "Fox News will pay more than $787 million to Dominion Voting Systems after the sides hammered out a last-minute settlement Tuesday in the explosive defamation case launched against the right-wing network. Fox acknowledged the court's rulings finding 'certain claims about Dominion to be false.' However, the network will not have to admit on air that it spread election lies.",
+          fullContent: "Fox News will pay more than $787 million to Dominion Voting Systems after the sides hammered out a last-minute settlement Tuesday in the explosive defamation case launched against the right-wing network. Fox acknowledged the court's rulings finding 'certain claims about Dominion to be false.' However, the network will not have to admit on air that it spread election lies. The settlement was announced just as opening statements were about to begin in the high-profile case. Fox was facing the possibility of having to pay $1.6 billion in damages. The settlement means top Fox executives like Rupert Murdoch will not have to testify in the case. Dominion had alleged that Fox knowingly spread false claims that its voting machines were rigged in the 2020 presidential election in order to boost ratings and prevent viewers from defecting to other networks.",
+          sentiment: "negative" as const,
+          keywords: ["Fox News", "Dominion", "settlement"],
           readingTimeSeconds: 240,
           pubDate: new Date().toUTCString(),
           link: "#",
@@ -193,7 +188,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     return (
       <div className="flex justify-center items-center py-20">
         <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-        <span className="ml-2 text-gray-600">Generating news script...</span>
+        <span className="ml-2 text-gray-600">Generating news summary...</span>
       </div>
     );
   }
@@ -207,7 +202,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
       {!script ? (
         <div className="flex justify-center items-center py-10">
           <Loader2 className="h-6 w-6 text-blue-600 animate-spin mr-2" />
-          <span className="text-gray-600">Generating news script...</span>
+          <span className="text-gray-600">Generating news summary...</span>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 py-4">
@@ -257,12 +252,12 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
                 {script.title}
               </CardTitle>
               <div className="text-xs text-gray-500 mt-1">
-                {script.type === 'group' ? 'Multiple Related Articles' : 'News Script'}
+                {script.type === 'group' ? 'Multiple Related Articles' : 'Complete Summary'}
               </div>
             </CardHeader>
             <CardContent>
-              <div className="bg-gray-50 p-4 rounded-md border mb-4 font-mono">
-                <pre className="whitespace-pre-wrap text-sm">{script.content}</pre>
+              <div className="bg-gray-50 p-4 rounded-md border mb-4">
+                <div className="whitespace-pre-wrap text-sm">{script.content}</div>
               </div>
               <div className="flex justify-end">
                 <button 
@@ -272,13 +267,13 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
                       navigator.clipboard.writeText(script.content);
                       toast({
                         title: "Copied to clipboard",
-                        description: "The news script has been copied to your clipboard",
+                        description: "The news summary has been copied to your clipboard",
                       });
                     }
                   }}
                 >
                   <Copy className="h-4 w-4" />
-                  Copy script
+                  Copy summary
                 </button>
               </div>
             </CardContent>

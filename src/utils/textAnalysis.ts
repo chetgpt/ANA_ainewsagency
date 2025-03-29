@@ -300,7 +300,6 @@ export function generateNewsScript(newsItem: any): string {
     const items = newsItem.items;
     const sentiment = newsItem.sentiment;
     const keywords = newsItem.keywords;
-    const readingTime = Math.round(newsItem.readingTimeSeconds / 60);
     
     // Create intro based on sentiment
     let intro = `A group of ${items.length} related stories with a ${sentiment} outlook. `;
@@ -325,33 +324,38 @@ export function generateNewsScript(newsItem: any): string {
   // Handle single news item
   else {
     const title = newsItem.title;
+    const fullContent = newsItem.fullContent || ""; 
     const description = newsItem.description;
-    const fullContent = newsItem.fullContent || ""; // Use fullContent when available
-    const sentiment = newsItem.sentiment;
     const keywords = newsItem.keywords || [];
     const sourceName = newsItem.sourceName;
     
-    // Use full content for script creation if available, otherwise use description
-    const contentForBody = fullContent && fullContent.length > description.length 
-      ? fullContent.substring(0, 400) // Use truncated full content if available
-      : description;
+    // Create a more complete summary from the full content if available
+    let summary = "";
+    
+    if (fullContent && fullContent.length > description.length) {
+      // Split the content into sentences
+      const sentences = fullContent.match(/[^.!?]+[.!?]+/g) || [];
       
+      // Take the first few sentences for the summary (up to 10)
+      const summaryLength = Math.min(sentences.length, 10);
+      summary = sentences.slice(0, summaryLength).join(' ').trim();
+    } else {
+      summary = description;
+    }
+    
     let script = `${title}\n\n`;
     
     if (sourceName) {
       script += `Source: ${sourceName}\n\n`;
     }
     
-    // Add the main content
-    script += `${contentForBody}\n\n`;
+    // Add the main content summary
+    script += `${summary}\n\n`;
     
     // Add keywords if available
     if (keywords && keywords.length) {
-      script += `Key topics: ${keywords.join(', ')}\n\n`;
+      script += `Key topics: ${keywords.join(', ')}`;
     }
-    
-    // Add sentiment information
-    script += `Sentiment: ${sentiment.charAt(0).toUpperCase() + sentiment.slice(1)}`;
     
     return script;
   }
