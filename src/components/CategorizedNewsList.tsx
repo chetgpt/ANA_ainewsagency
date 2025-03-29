@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Loader2, FileText, Copy, Newspaper } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,25 +12,29 @@ interface CategorizedNewsListProps {
   selectedCategory: string;
 }
 
+// Define the script type outside the component to improve readability
+interface NewsScript {
+  title: string;
+  content: string;
+  type: string;
+  summary?: {
+    description: string;
+    sentiment: "positive" | "negative" | "neutral";
+    keywords: string[];
+    readingTimeSeconds: number;
+    pubDate: string;
+    sourceName: string;
+  }
+}
+
 const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => {
   const [loading, setLoading] = useState(true);
   const [apiStatus, setApiStatus] = useState<{
     geminiAvailable: boolean;
     perplexityAvailable: boolean;
   }>({ geminiAvailable: false, perplexityAvailable: false });
-  const [script, setScript<{
-    title: string, 
-    content: string, 
-    type: string,
-    summary?: {
-      description: string;
-      sentiment: "positive" | "negative" | "neutral";
-      keywords: string[];
-      readingTimeSeconds: number;
-      pubDate: string;
-      sourceName: string;
-    }
-  } | null>(null);
+  // Fixed: Correctly define the state with the type before the initial value
+  const [script, setScript] = useState<NewsScript | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
