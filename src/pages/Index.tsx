@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import NewsHeader from "@/components/NewsHeader";
 import CategorizedNewsList from "@/components/CategorizedNewsList";
+import NewsList from "@/components/NewsList";
 
 const Index = () => {
   // Always use summarized as the category
@@ -16,6 +17,10 @@ const Index = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <NewsHeader sourceName="NewsHub" sourceUrl="#" />
       <main className="container mx-auto px-4 py-4 flex-grow">
+        <h2 className="text-2xl font-bold mb-6">Latest News</h2>
+        <NewsList />
+        
+        <h2 className="text-2xl font-bold mt-10 mb-6">Categorized News</h2>
         <CategorizedNewsList 
           selectedCategory={selectedCategory}
         />

@@ -5,9 +5,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { analyzeSentiment, extractKeywords, calculateReadingTime } from "@/utils/textAnalysis";
 import { useToast } from "@/hooks/use-toast";
+import NewsSourceSelector, { NewsSource, NEWS_SOURCES } from "./NewsSourceSelector";
 
 interface NewsListProps {
-  feedUrl: string;
+  feedUrl?: string;
 }
 
 interface CachedNewsItem extends NewsItemProps {
@@ -16,21 +17,27 @@ interface CachedNewsItem extends NewsItemProps {
 }
 
 const NewsList = ({ feedUrl }: NewsListProps) => {
+  const [currentSource, setCurrentSource] = useState<NewsSource>(
+    NEWS_SOURCES[0] // Default to first source
+  );
   const [newsItems, setNewsItems] = useState<CachedNewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const { toast } = useToast();
 
+  // Use the provided feedUrl or get it from currentSource
+  const activeFeedUrl = feedUrl || currentSource.feedUrl;
+
   // Generate a unique ID for a news item based on its content
   const generateNewsItemId = (title: string, pubDate: string, link: string): string => {
     return `${title}-${pubDate}-${link}`.replace(/[^a-zA-Z0-9]/g, '');
   };
 
-  // Load cached news items from localStorage
+  // Load cached news items from localStorage for the current feed
   const loadCachedNews = () => {
     try {
-      const cachedData = localStorage.getItem(`news-cache-${feedUrl}`);
+      const cachedData = localStorage.getItem(`news-cache-${activeFeedUrl}`);
       if (cachedData) {
         const { items, timestamp } = JSON.parse(cachedData);
         setNewsItems(items);
@@ -48,14 +55,14 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
     return false;
   };
 
-  // Save news items to localStorage
+  // Save news items to localStorage for the current feed
   const saveCachedNews = (items: CachedNewsItem[]) => {
     try {
       const cacheData = {
         items,
         timestamp: new Date().toISOString(),
       };
-      localStorage.setItem(`news-cache-${feedUrl}`, JSON.stringify(cacheData));
+      localStorage.setItem(`news-cache-${activeFeedUrl}`, JSON.stringify(cacheData));
       setLastUpdated(new Date());
     } catch (err) {
       console.error("Error saving news to cache:", err);
@@ -72,6 +79,15 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
     });
   };
 
+  // Handle changing the news source
+  const handleSourceChange = (source: NewsSource) => {
+    setCurrentSource(source);
+    setLoading(true);
+    setNewsItems([]);
+    // After setting the new source, the useEffect will trigger
+    // and load the cached news or fetch new news for this source
+  };
+
   const fetchRssFeed = async (forceRefresh = false) => {
     // Try to load from cache first, unless force refresh is requested
     if (!forceRefresh && loadCachedNews()) {
@@ -83,7 +99,7 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
       
       // Use a CORS proxy to fetch the RSS feed
       const corsProxy = "https://api.allorigins.win/raw?url=";
-      const response = await fetch(`${corsProxy}${encodeURIComponent(feedUrl)}`);
+      const response = await fetch(`${corsProxy}${encodeURIComponent(activeFeedUrl)}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch RSS feed: ${response.status}`);
@@ -143,7 +159,7 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
             pubDate,
             link,
             imageUrl: imageUrl || undefined,
-            sourceName: "",
+            sourceName: currentSource.name, // Add source name to each item
             sentiment,
             keywords,
             readingTimeSeconds,
@@ -172,8 +188,9 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
   };
 
   useEffect(() => {
+    // Whenever the activeFeedUrl changes, try to load from cache or fetch fresh data
     fetchRssFeed();
-  }, [feedUrl]);
+  }, [activeFeedUrl]); // This will trigger when either the feedUrl prop or currentSource changes
 
   if (loading) {
     return (
@@ -204,8 +221,15 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
     <div>
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center">
+          {/* Only show the source selector if no feedUrl is provided as a prop */}
+          {!feedUrl && (
+            <NewsSourceSelector 
+              currentSource={currentSource} 
+              onSourceChange={handleSourceChange} 
+            />
+          )}
           {lastUpdated && (
-            <span className="text-sm text-gray-500 mr-4">
+            <span className="text-sm text-gray-500 ml-4">
               Last updated: {lastUpdated.toLocaleString()}
             </span>
           )}
