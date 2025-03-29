@@ -1,4 +1,3 @@
-
 /**
  * This file contains utilities for interacting with LLM APIs
  */
@@ -331,6 +330,9 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
                 Focus on the key facts, with no commentary or analysis.
                 Keep it under 200 words and focus on the most important information.
                 
+                If this is a group of multiple related stories, create ONE UNIFIED SUMMARY that covers all the key points
+                as a single coherent narrative, rather than treating them as separate articles.
+                
                 Title: ${title}
                 
                 Content: ${content}`
@@ -352,13 +354,13 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
     }
 
     const data = await response.json();
-    const scriptContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
-    if (!scriptContent) {
+    if (!responseContent) {
       throw new Error("Unexpected response format from Gemini API");
     }
     
-    return `${title}\n\n${scriptContent}`;
+    return `${title}\n\n${responseContent}`;
   } catch (error) {
     console.error("Error generating script with Gemini:", error);
     throw error; // Let the parent function handle the fallback
@@ -385,7 +387,10 @@ async function generateScriptWithPerplexity(title: string, content: string, apiK
             Explain any complex concepts in simple terms as if you're explaining to a friend.
             Keep it conversational and use a friendly tone.
             Focus on the key facts, with no commentary or analysis.
-            Keep it under 200 words and focus on the most important information.`
+            Keep it under 200 words and focus on the most important information.
+            
+            If this is a group of multiple related stories, create ONE UNIFIED SUMMARY that covers all the key points
+            as a single coherent narrative, rather than treating them as separate articles.`
           },
           {
             role: 'user',
