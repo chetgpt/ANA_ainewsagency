@@ -1,16 +1,15 @@
 
-import React, { useCallback } from "react";
+import React from "react";
 import { 
   Carousel,
   CarouselContent,
   CarouselItem,
 } from "@/components/ui/carousel";
 import NewsScriptCard from "@/components/news/NewsScriptCard";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import CarouselCounter from "@/components/news/CarouselCounter";
 import LoadingCarouselItem from "@/components/news/LoadingCarouselItem";
 import { useCarouselNavigation } from "@/hooks/useCarouselNavigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 interface NewsCarouselProps {
   scripts: Array<{
@@ -47,52 +46,44 @@ const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
           totalItems={scripts.length} 
         />
         
-        <div className="relative">
-          <CarouselContent ref={emblaRef} className="cursor-grab active:cursor-grabbing">
-            {scripts.map((script) => (
-              <CarouselItem key={script.id} className="flex justify-center md:px-4">
-                <div className="w-full max-w-4xl px-2">
-                  <NewsScriptCard script={script} />
-                </div>
-              </CarouselItem>
-            ))}
-            
-            {isLoading && <LoadingCarouselItem />}
-          </CarouselContent>
+        <CarouselContent ref={emblaRef}>
+          {scripts.map((script) => (
+            <CarouselItem key={script.id} className="flex justify-center">
+              <div className="w-full max-w-4xl px-2">
+                <NewsScriptCard script={script} />
+              </div>
+            </CarouselItem>
+          ))}
           
-          <Button 
-            onClick={handlePrevious}
-            variant="outline" 
-            size="icon"
-            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full opacity-70 hover:opacity-100 bg-white shadow-md"
+          {isLoading && <LoadingCarouselItem />}
+        </CarouselContent>
+        
+        <div className="flex justify-center mt-4 gap-2">
+          <button 
+            className="flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 bg-white hover:bg-gray-50 active:bg-gray-100"
+            onClick={() => {
+              console.log("Previous button clicked");
+              handlePrevious();
+            }}
+            aria-label="Previous slide"
+            type="button"
           >
-            <ChevronLeft className="h-4 w-4" />
-            <span className="sr-only">Previous</span>
-          </Button>
+            <ChevronLeft className="h-5 w-5" />
+          </button>
           
-          <Button
-            onClick={handleNext}
-            variant="outline"
-            size="icon"
-            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full opacity-70 hover:opacity-100 bg-white shadow-md"
+          <button 
+            className="flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 bg-white hover:bg-gray-50 active:bg-gray-100"
+            onClick={() => {
+              console.log("Next button clicked");
+              handleNext();
+            }}
+            aria-label="Next slide"
+            type="button"
           >
-            <ChevronRight className="h-4 w-4" />
-            <span className="sr-only">Next</span>
-          </Button>
+            <ChevronRight className="h-5 w-5" />
+          </button>
         </div>
       </Carousel>
-      
-      {/* Visual indicator for swipe functionality */}
-      <div className="text-xs text-gray-500 text-center mt-2">
-        ← Swipe or use arrows →
-      </div>
-      
-      {/* Debug info - helps with troubleshooting */}
-      <div className="hidden">
-        <p>Current Index: {currentIndex}</p>
-        <p>Total Items: {scripts.length}</p>
-        <p>Loading: {isLoading ? 'true' : 'false'}</p>
-      </div>
     </div>
   );
 };
