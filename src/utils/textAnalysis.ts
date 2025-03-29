@@ -102,7 +102,9 @@ export async function fetchArticleContent(url: string): Promise<string> {
   try {
     // Use a CORS proxy to fetch the article
     const corsProxy = "https://api.allorigins.win/raw?url=";
-    const response = await fetch(`${corsProxy}${encodeURIComponent(url)}`);
+    // Add a cache-busting parameter to avoid getting cached content
+    const urlWithCacheBust = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+    const response = await fetch(`${corsProxy}${encodeURIComponent(urlWithCacheBust)}`);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch article: ${response.status}`);

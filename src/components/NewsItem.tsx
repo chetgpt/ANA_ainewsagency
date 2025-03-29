@@ -26,7 +26,7 @@ const NewsItem = ({
   link, 
   sourceName,
   summary,
-  isSummarized = true,
+  isSummarized = false,
   isSummarizing = false
 }: NewsItemProps) => {
   const formattedDate = formatDistanceToNow(new Date(pubDate), { addSuffix: true });
@@ -34,7 +34,9 @@ const NewsItem = ({
   // Determine card styling based on summarization status
   const cardClasses = `h-full transition-shadow duration-200 ${
     isSummarizing ? 'border-blue-300 shadow-sm' : 
-    isSummarized && summary ? 'hover:shadow-md border-green-200' : 'hover:shadow-md'
+    isSummarized && summary ? 'hover:shadow-md border-green-200' : 
+    isSummarized && !summary ? 'hover:shadow-md border-red-100' : 
+    'hover:shadow-md border-gray-100'
   }`;
   
   return (
