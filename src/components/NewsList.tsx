@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import NewsItem, { NewsItemProps } from "./NewsItem";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -381,7 +380,18 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       const fullUrl = `${corsProxy}${encodeURIComponent(activeFeedUrl)}?_=${Date.now()}`;
       console.log(`Full request URL: ${fullUrl}`);
       
-      const response = await fetch(fullUrl);
+      // Add timeout to fetch to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
+      const response = await fetch(fullUrl, { 
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/rss+xml, application/xml, text/xml, */*'
+        }
+      });
+      clearTimeout(timeoutId);
+      
       console.log(`RSS Feed Response status: ${response.status}`);
       
       if (!response.ok) {
@@ -390,6 +400,14 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       
       const data = await response.text();
       console.log(`RSS data received, length: ${data.length} characters`);
+      
+      if (data.length < 100) {
+        console.warn(`Suspiciously short RSS data: "${data.substring(0, 100)}..."`);
+        throw new Error("Received invalid or empty RSS feed data");
+      }
+      
+      // Log the first part of the response for debugging
+      console.log(`RSS data preview: "${data.substring(0, 200)}..."`);
       
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(data, "text/xml");
@@ -407,6 +425,18 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       
       const items = xmlDoc.querySelectorAll("item");
       console.log(`Found ${items.length} items in the RSS feed`);
+      
+      if (items.length === 0) {
+        // Try to detect if we're dealing with Atom format instead of RSS
+        const atomEntries = xmlDoc.querySelectorAll("entry");
+        if (atomEntries.length > 0) {
+          console.log(`Detected Atom format with ${atomEntries.length} entries`);
+          // Process Atom entries here if needed
+        } else {
+          console.warn("No items found in the feed - not a valid RSS or Atom feed?");
+          throw new Error("No news items found in the feed");
+        }
+      }
       
       const newParsedItems: CachedNewsItem[] = [];
       const itemsToSummarize: string[] = []; // Store IDs of new items needing summarization
@@ -498,7 +528,13 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       
       // Update state with new items (UI component will handle sorting)
       setNewsItems(newParsedItems);
-      saveCachedNews(newParsedItems);
+      
+      if (newParsedItems.length > 0) {
+        saveCachedNews(newParsedItems);
+      } else {
+        console.warn("No items found within the last 24 hours - check the feed content");
+      }
+      
       setLoading(false);
       setError("");
       
@@ -520,8 +556,15 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       }
     } catch (err) {
       console.error("Error fetching RSS feed:", err);
-      setError(`Failed to load news: ${err instanceof Error ? err.message : "Unknown error"}`);
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      setError(`Failed to load news: ${errorMessage}`);
       setLoading(false);
+      
+      toast({
+        title: "Error loading news",
+        description: errorMessage,
+        variant: "destructive"
+      });
     }
   };
 
