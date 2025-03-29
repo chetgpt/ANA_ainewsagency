@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import NewsItem, { NewsItemProps } from "./NewsItem";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -6,11 +5,12 @@ import { Loader2 } from "lucide-react";
 import { analyzeSentiment, extractKeywords, calculateReadingTime, fetchArticleContent } from "@/utils/textAnalysis";
 import { analyzeLLM } from "@/utils/llmService";
 import { useToast } from "@/hooks/use-toast";
-import NewsSourceSelector, { NewsSource, NEWS_SOURCES } from "./NewsSourceSelector";
+import { NEWS_SOURCES } from "./NewsSourceSelector";
 
 interface NewsListProps {
   feedUrl?: string;
   onStatusUpdate?: (summarizingCount: number, lastUpdated: Date | null) => void;
+  combineAllSources?: boolean;
 }
 
 interface CachedNewsItem extends NewsItemProps {
@@ -29,10 +29,7 @@ interface NewsCache {
   timestamp: string;
 }
 
-const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
-  const [currentSource, setCurrentSource] = useState<NewsSource>(
-    NEWS_SOURCES[0] // Default to first source
-  );
+const NewsList = ({ feedUrl, onStatusUpdate, combineAllSources = false }: NewsListProps) => {
   const [newsItems, setNewsItems] = useState<CachedNewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -49,9 +46,6 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
   // AbortController ref for cleanup
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Use the provided feedUrl or get it from currentSource
-  const activeFeedUrl = feedUrl || currentSource.feedUrl;
-
   // Define a function to check if a date is within the last day
   const isWithinLastDay = (dateString: string): boolean => {
     const pubDate = new Date(dateString);
@@ -65,18 +59,18 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     return `${title}-${pubDate}-${link}`.replace(/[^a-zA-Z0-9]/g, '');
   };
 
-  // Load cached news items from localStorage for the current feed
-  const loadCachedNews = (): { items: CachedNewsItem[], timestamp: string } | null => {
+  // Load cached news items from localStorage for the given feed
+  const loadCachedNews = (feed: string): { items: CachedNewsItem[], timestamp: string } | null => {
     try {
-      console.log("Attempting to load cache for:", activeFeedUrl);
-      const cachedData = localStorage.getItem(`news-cache-${activeFeedUrl}`);
+      console.log("Attempting to load cache for:", feed);
+      const cachedData = localStorage.getItem(`news-cache-${feed}`);
       if (cachedData) {
         // Parse the cached data and validate it has the expected structure
         const parsedData = JSON.parse(cachedData) as NewsCache;
         
         if (!parsedData || !Array.isArray(parsedData.items) || !parsedData.timestamp) {
           console.warn("Invalid cache structure, clearing cache");
-          localStorage.removeItem(`news-cache-${activeFeedUrl}`);
+          localStorage.removeItem(`news-cache-${feed}`);
           return null;
         }
         
@@ -120,13 +114,13 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       }
     } catch (err) {
       console.error("Error loading cached news:", err);
-      localStorage.removeItem(`news-cache-${activeFeedUrl}`); // Clear corrupted cache
+      localStorage.removeItem(`news-cache-${feed}`); // Clear corrupted cache
     }
     return null;
   };
 
-  // Save news items to localStorage for the current feed
-  const saveCachedNews = (items: CachedNewsItem[]) => {
+  // Save news items to localStorage for a specific feed
+  const saveCachedNews = (items: CachedNewsItem[], feed: string) => {
     try {
       // Ensure isSummarizing is not persisted to cache
       const itemsToSave = items.map(({ isSummarizing, ...rest }) => rest);
@@ -134,43 +128,41 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
         items: itemsToSave,
         timestamp: new Date().toISOString(),
       };
-      localStorage.setItem(`news-cache-${activeFeedUrl}`, JSON.stringify(cacheData));
+      localStorage.setItem(`news-cache-${feed}`, JSON.stringify(cacheData));
       setLastUpdated(new Date());
-      console.log(`Saved ${itemsToSave.length} items to cache`);
+      console.log(`Saved ${itemsToSave.length} items to cache for ${feed}`);
     } catch (err) {
       console.error("Error saving news to cache:", err);
       // Handle potential storage quota errors
     }
   };
 
-  // Force refresh news from the source
+  // Force refresh news from all sources
   const refreshNews = () => {
     setLoading(true);
-    fetchRssFeed(true);
+    setNewsItems([]);
+    if (combineAllSources) {
+      fetchAllRssFeeds(true);
+    } else {
+      fetchRssFeed(feedUrl!, true);
+    }
     toast({
       title: "Refreshing news",
       description: "Fetching the latest updates...",
     });
   };
 
-  // Handle changing the news source
-  const handleSourceChange = (source: NewsSource) => {
-    setCurrentSource(source);
-    setLoading(true);
-    setNewsItems([]);
-    // After setting the new source, the useEffect will trigger
-    // and load the cached news or fetch new news for this source
-  };
-
   // Clear all news cache
   const clearCache = () => {
     try {
-      // Clear specific feed cache
-      localStorage.removeItem(`news-cache-${activeFeedUrl}`);
-      
-      // Optionally, clear all feeds cache
-      for (const source of NEWS_SOURCES) {
-        localStorage.removeItem(`news-cache-${source.feedUrl}`);
+      if (combineAllSources) {
+        // Clear cache for all sources
+        for (const source of NEWS_SOURCES) {
+          localStorage.removeItem(`news-cache-${source.feedUrl}`);
+        }
+      } else if (feedUrl) {
+        // Clear specific feed cache
+        localStorage.removeItem(`news-cache-${feedUrl}`);
       }
       
       setNewsItems([]);
@@ -183,7 +175,11 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       });
       
       // Fetch fresh news
-      fetchRssFeed(true);
+      if (combineAllSources) {
+        fetchAllRssFeeds(true);
+      } else if (feedUrl) {
+        fetchRssFeed(feedUrl, true);
+      }
     } catch (err) {
       console.error("Error clearing cache:", err);
       toast({
@@ -200,13 +196,11 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       const newItems = currentItems.map(item => 
         item.id === updatedItem.id ? updatedItem : item
       );
-      // Save updated items to cache
-      saveCachedNews(newItems);
       return newItems;
     });
   };
 
-  // Background summarization function - fixed to properly check item status
+  // Background summarization function
   const summarizeItemInBackground = async (itemId: string): Promise<void> => {
     // Get the latest item state
     const item = newsItems.find(i => i.id === itemId);
@@ -340,22 +334,21 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     const MAX_CONCURRENT = 2; // Process up to 2 items at once
     console.log(`Starting summarization queue for ${itemIds.length} items.`);
     
-    // Access the current newsItems directly to ensure we have the latest state
+    // Delay startup to ensure state is settled
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Reset activeSummarizations to ensure we don't have stale entries
+    setActiveSummarizations(new Set());
+    
+    // Get the latest newsItems state
     const currentNewsItems = [...newsItems];
-    const currentActiveSummarizations = new Set(activeSummarizations);
     
     // Filter out IDs that are already being summarized or have summaries
     const itemsToProcess = itemIds.filter(id => {
       const item = currentNewsItems.find(i => i.id === id);
       
-      // Debug logging to understand why items are being filtered out
       if (!item) {
         console.log(`Item ${id} not found in news items`);
-        return false;
-      }
-      
-      if (currentActiveSummarizations.has(id)) {
-        console.log(`Item ${id} is already being summarized`);
         return false;
       }
       
@@ -369,7 +362,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     });
     
     if (itemsToProcess.length === 0) {
-      console.log("No items need summarization in the current queue. Items filtered out completely.");
+      console.log("No items need summarization in the current queue.");
       return;
     }
     
@@ -403,10 +396,15 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     };
   }, []);
 
-  // Force a refresh on initial load - don't use cache
+  // Initial load effect
   useEffect(() => {
-    console.log("*** INITIAL LOAD: Forcing refresh of RSS feed ***");
-    fetchRssFeed(true); // Force refresh on initial load
+    if (combineAllSources) {
+      console.log("*** INITIAL LOAD: Fetching from all RSS sources ***");
+      fetchAllRssFeeds(true);
+    } else if (feedUrl) {
+      console.log(`*** INITIAL LOAD: Forcing refresh of RSS feed: ${feedUrl} ***`);
+      fetchRssFeed(feedUrl, true);
+    }
     
     return () => {
       // Ensure cleanup on unmount
@@ -414,13 +412,16 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
         abortControllerRef.current.abort();
       }
     };
-  }, []); // Empty dependency array means this only runs once
+  }, []); // Empty dependency array for initial load only
 
-  // When activeFeedUrl changes, fetch the new feed
+  // React to feedUrl or combineAllSources changes
   useEffect(() => {
-    if (activeFeedUrl) {
-      console.log(`Feed URL changed to: ${activeFeedUrl}, fetching new data...`);
-      fetchRssFeed();
+    if (!combineAllSources && feedUrl) {
+      console.log(`Feed URL changed to: ${feedUrl}, fetching new data...`);
+      fetchRssFeed(feedUrl);
+    } else if (combineAllSources) {
+      console.log("Combining all sources mode activated, fetching all sources...");
+      fetchAllRssFeeds();
     }
     
     return () => {
@@ -429,7 +430,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
         abortControllerRef.current.abort();
       }
     };
-  }, [activeFeedUrl]);
+  }, [feedUrl, combineAllSources]);
 
   // Update parent component with status
   useEffect(() => {
@@ -438,7 +439,261 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     }
   }, [summarizingCount, lastUpdated, onStatusUpdate]);
 
-  const fetchRssFeed = async (forceRefresh = false) => {
+  // New function to fetch from all RSS sources
+  const fetchAllRssFeeds = async (forceRefresh = false) => {
+    setLoading(true);
+    setError("");
+    
+    let allItems: CachedNewsItem[] = [];
+    let hasErrors = false;
+    let sourcesToProcess = [...NEWS_SOURCES];
+    
+    // If not forcing a refresh, try to load from cache first
+    if (!forceRefresh) {
+      let anyNewItems = false;
+      const allCachedItems: CachedNewsItem[] = [];
+      
+      // Load items from cache for each source
+      for (const source of NEWS_SOURCES) {
+        const cachedNews = loadCachedNews(source.feedUrl);
+        if (cachedNews) {
+          // Filter to only include items from the last day
+          const filteredItems = cachedNews.items
+            .filter(item => isWithinLastDay(item.pubDate))
+            .map(item => ({
+              ...item,
+              sourceName: source.name // Ensure source name is included
+            }));
+          
+          if (filteredItems.length > 0) {
+            allCachedItems.push(...filteredItems);
+            anyNewItems = true;
+          }
+        }
+      }
+      
+      if (anyNewItems) {
+        console.log(`Loaded ${allCachedItems.length} cached items from all sources`);
+        setNewsItems(allCachedItems);
+        
+        // Find items that need summarization
+        const itemsToSummarize = allCachedItems
+          .filter(item => !item.summary || !item.isSummarized)
+          .map(item => item.id);
+        
+        if (itemsToSummarize.length > 0) {
+          console.log(`Found ${itemsToSummarize.length} cached items needing summarization`);
+          setTimeout(() => processSummarizationQueue(itemsToSummarize), 1000);
+        }
+        
+        setLoading(false);
+        setLastUpdated(new Date());
+        return;
+      }
+    }
+    
+    setNewsItems([]); // Clear existing items before fetching
+    
+    // Process each RSS source
+    for (const source of sourcesToProcess) {
+      try {
+        console.log(`Fetching from source: ${source.name}`);
+        
+        // Abort any ongoing fetch
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+        
+        // Create a new AbortController for this fetch
+        abortControllerRef.current = new AbortController();
+        const signal = abortControllerRef.current.signal;
+        
+        // Use a CORS proxy to fetch the RSS feed with cache busting
+        const corsProxy = "https://api.allorigins.win/raw?url=";
+        const fullUrl = `${corsProxy}${encodeURIComponent(source.feedUrl)}?_=${Date.now()}`;
+        
+        // Add timeout to fetch to prevent hanging
+        const timeoutId = setTimeout(() => {
+          if (abortControllerRef.current) {
+            console.log(`Fetch for ${source.name} timed out after 15 seconds`);
+            abortControllerRef.current.abort();
+          }
+        }, 15000); // 15 second timeout
+        
+        console.log(`Starting fetch for ${source.name}...`);
+        const response = await fetch(fullUrl, { 
+          signal: signal,
+          headers: {
+            'Accept': 'application/rss+xml, application/xml, text/xml, */*'
+          }
+        });
+        clearTimeout(timeoutId);
+        
+        console.log(`${source.name} RSS Feed Response status: ${response.status}`);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch RSS feed from ${source.name}: ${response.status}`);
+        }
+        
+        const data = await response.text();
+        
+        if (data.length < 100) {
+          console.warn(`Suspiciously short RSS data from ${source.name}: "${data}"`);
+          throw new Error(`Received invalid or empty RSS feed data from ${source.name}`);
+        }
+        
+        // Try parsing as XML
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(data, "text/xml");
+        
+        // Check if there was an XML parsing error
+        const parserError = xmlDoc.querySelector("parsererror");
+        if (parserError) {
+          console.error(`XML parsing error for ${source.name}:`, parserError.textContent);
+          throw new Error(`Failed to parse RSS feed from ${source.name}: Invalid XML format`);
+        }
+        
+        // Check if we have any items
+        const items = xmlDoc.querySelectorAll("item");
+        console.log(`Found ${items.length} items in the ${source.name} RSS feed`);
+        
+        if (items.length === 0) {
+          // Try to detect if we're dealing with Atom format instead of RSS
+          const atomEntries = xmlDoc.querySelectorAll("entry");
+          if (atomEntries.length > 0) {
+            console.log(`Detected Atom format with ${atomEntries.length} entries for ${source.name}`);
+            // We could process Atom entries here if needed
+          } else {
+            console.warn(`No items found in the ${source.name} feed - skipping source`);
+            continue; // Skip to next source
+          }
+        }
+        
+        const sourceItems: CachedNewsItem[] = [];
+        
+        // Helper function to decode HTML entities
+        const decodeHtmlEntities = (text: string): string => {
+          const textArea = document.createElement('textarea');
+          textArea.innerHTML = text;
+          return textArea.value;
+        };
+        
+        // Process each RSS item
+        items.forEach((item, index) => {
+          // Extract data from RSS item
+          let imageUrl = "";
+          const mediaContent = item.querySelector("media\\:content, content");
+          const enclosure = item.querySelector("enclosure");
+          
+          if (mediaContent && mediaContent.getAttribute("url")) {
+            imageUrl = mediaContent.getAttribute("url") || "";
+          } else if (enclosure && enclosure.getAttribute("url") && enclosure.getAttribute("type")?.startsWith("image/")) {
+            imageUrl = enclosure.getAttribute("url") || "";
+          } else {
+            // Try to extract image from description
+            const description = item.querySelector("description")?.textContent || "";
+            const imgMatch = description.match(/<img[^>]+src="([^"]+)"/);
+            if (imgMatch && imgMatch[1]) {
+              imageUrl = imgMatch[1];
+            }
+          }
+          
+          // Get and decode title
+          const titleEl = item.querySelector("title");
+          let title = titleEl?.textContent || "No title";
+          title = decodeHtmlEntities(title);
+
+          const pubDateStr = item.querySelector("pubDate")?.textContent || new Date().toUTCString();
+          const link = item.querySelector("link")?.textContent || "#";
+          
+          // Get and decode description
+          const descriptionEl = item.querySelector("description");
+          let description = "";
+          if (descriptionEl) {
+            if (descriptionEl.firstChild && descriptionEl.firstChild.nodeType === Node.CDATA_SECTION_NODE) {
+              description = descriptionEl.firstChild.textContent || "";
+            } else {
+              description = descriptionEl.textContent || "";
+            }
+            description = decodeHtmlEntities(description);
+          }
+          
+          // Skip items that are older than one day
+          if (!isWithinLastDay(pubDateStr)) {
+            console.log(`Skipping item "${title}" from ${source.name} - older than 24 hours`);
+            return;
+          }
+          
+          // Generate a unique ID for this news item
+          const id = generateNewsItemId(title, pubDateStr, link);
+          
+          // Create the news item
+          const newsItem: CachedNewsItem = {
+            id,
+            title,
+            description,
+            pubDate: pubDateStr,
+            link,
+            imageUrl: imageUrl || undefined,
+            sourceName: source.name,
+            sentiment: analyzeSentiment(title + " " + description),
+            keywords: extractKeywords(title + " " + description, 3),
+            readingTimeSeconds: calculateReadingTime(description),
+            summary: null,
+            llmSentiment: null,
+            llmKeywords: [],
+            isSummarized: false,
+            isSummarizing: false,
+            cached: false
+          };
+          
+          sourceItems.push(newsItem);
+        });
+        
+        // Save these items to cache for this source
+        if (sourceItems.length > 0) {
+          saveCachedNews(sourceItems, source.feedUrl);
+          allItems = [...allItems, ...sourceItems];
+        }
+        
+      } catch (error) {
+        console.error(`Error fetching RSS feed from ${source.name}:`, error);
+        hasErrors = true;
+        // Continue with next source even if this one failed
+      }
+    }
+    
+    // Set combined items in state
+    if (allItems.length > 0) {
+      console.log(`Processed a total of ${allItems.length} items from all sources`);
+      setNewsItems(allItems);
+      setLastUpdated(new Date());
+      
+      // Start background summarization for all new items
+      const itemsToSummarize = allItems
+        .filter(item => !item.isSummarized)
+        .map(item => item.id);
+      
+      if (itemsToSummarize.length > 0) {
+        toast({
+          title: "Processing content",
+          description: `Generating summaries for ${itemsToSummarize.length} new articles...`,
+        });
+        
+        // Delay summarization queue to ensure state is updated
+        setTimeout(() => processSummarizationQueue(itemsToSummarize), 1000);
+      }
+    } else if (hasErrors) {
+      setError("Failed to load news from some sources. Please try again.");
+    } else {
+      setError("No news articles found for the last 24 hours.");
+    }
+    
+    setLoading(false);
+  };
+
+  // Existing fetchRssFeed function for single source fetch
+  const fetchRssFeed = async (activeFeedUrl: string, forceRefresh = false) => {
     // Abort any ongoing fetch
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -449,7 +704,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     const signal = abortControllerRef.current.signal;
     
     // Try to load from cache first, unless force refresh is requested
-    const cachedNews = !forceRefresh ? loadCachedNews() : null;
+    const cachedNews = !forceRefresh ? loadCachedNews(activeFeedUrl) : null;
     console.log("Cache status:", cachedNews ? "Using cache" : "No cache or force refresh");
     
     if (cachedNews) {
@@ -469,7 +724,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       if (itemsToSummarizeFromCache.length > 0) {
         console.log(`Found ${itemsToSummarizeFromCache.length} items in cache needing summarization.`);
         // Slight delay to ensure state is updated before processing
-        setTimeout(() => processSummarizationQueue(itemsToSummarizeFromCache), 500); 
+        setTimeout(() => processSummarizationQueue(itemsToSummarizeFromCache), 1000); 
       }
       
       setLoading(false);
@@ -560,16 +815,16 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       const currentItemsState = newsItems.length > 0 ? newsItems : (cachedNews?.items || []);
       const currentItemsMap = new Map(currentItemsState.map(item => [item.id, item]));
 
-      // Define regex patterns for filtering out non-news items
-      const nonNewsTitlePattern = /^\d{1,2}\/\d{1,2}:\s+CBS\s+Evening\s+News(\s+Plus)?$/i;
-      const videoOnlyPattern = /adapt or die/i; // Example for specific video titles if needed
-      
       // Helper function to decode HTML entities
       const decodeHtmlEntities = (text: string): string => {
         const textArea = document.createElement('textarea');
         textArea.innerHTML = text;
         return textArea.value;
       };
+      
+      // Find the source name based on the feed URL
+      const source = NEWS_SOURCES.find(s => s.feedUrl === activeFeedUrl);
+      const sourceName = source ? source.name : "Unknown Source";
       
       // Process each RSS item
       items.forEach((item, index) => {
@@ -619,17 +874,6 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
           return;
         }
         
-        // Apply filtering based on title patterns
-        if (nonNewsTitlePattern.test(title)) {
-          console.log(`Skipping item "${title}" - matches non-news title pattern`);
-          return;
-        }
-        
-        if (videoOnlyPattern.test(title)) {
-          console.log(`Skipping item "${title}" - matches video-only pattern`);
-          return;
-        }
-        
         // Generate a unique ID for this news item
         const id = generateNewsItemId(title, pubDateStr, link);
         
@@ -652,7 +896,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
             pubDate: pubDateStr,
             link,
             imageUrl: imageUrl || undefined,
-            sourceName: currentSource.name,
+            sourceName,
             // Do basic analysis immediately for a minimal display
             sentiment: isUpdate ? existingItem.sentiment : analyzeSentiment(title + " " + description),
             keywords: isUpdate ? existingItem.keywords : extractKeywords(title + " " + description, 3),
@@ -687,7 +931,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
         setNewsItems(newParsedItems);
         
         if (newParsedItems.length > 0) {
-          saveCachedNews(newParsedItems);
+          saveCachedNews(newParsedItems, activeFeedUrl);
         } else {
           console.warn("NO items found within the last 24 hours - check the feed content");
         }
@@ -703,7 +947,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
           });
           
           // Slight delay to ensure state is updated before processing
-          setTimeout(() => processSummarizationQueue(itemsToSummarize), 500);
+          setTimeout(() => processSummarizationQueue(itemsToSummarize), 1000);
         }
         
         if (forceRefresh) {
@@ -765,7 +1009,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
         description: `Summarizing ${itemsToProcess.length} news items...`,
       });
       // Slight delay to ensure state is updated before processing
-      setTimeout(() => processSummarizationQueue(itemsToProcess), 300);
+      setTimeout(() => processSummarizationQueue(itemsToProcess), 1000);
     } else {
       toast({
         title: "No items to summarize",
@@ -787,7 +1031,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       <Alert className="my-4">
         <AlertDescription>
           No news articles found for the last 24 hours. 
-          Try selecting a different source or clearing the cache.
+          Try clearing the cache and refreshing.
         </AlertDescription>
       </Alert>
     );
@@ -797,15 +1041,8 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     <div>
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center">
-          {/* Only show the source selector if no feedUrl is provided as a prop */}
-          {!feedUrl && (
-            <NewsSourceSelector 
-              currentSource={currentSource} 
-              onSourceChange={handleSourceChange} 
-            />
-          )}
           {lastUpdated && (
-            <span className="text-sm text-gray-500 ml-4">
+            <span className="text-sm text-gray-500">
               Last updated: {lastUpdated.toLocaleString()}
             </span>
           )}
