@@ -12,15 +12,18 @@ export function useCarouselNavigation({ scripts, onLoadMore }: UseCarouselNaviga
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: false,
     dragFree: false,
-    containScroll: "keepSnaps"
+    containScroll: "keepSnaps",
+    draggable: true, // Explicitly enable dragging/swiping
+    align: "center"
   });
   const [isLoading, setIsLoading] = useState(false);
   const previousScriptsLength = useRef(scripts.length);
 
   // Function to handle when the user reaches the end of available content
-  const handleReachEnd = async (index: number) => {
+  const handleReachEnd = useCallback(async (index: number) => {
     if (index === scripts.length - 1 && !isLoading) {
       setIsLoading(true);
+      console.log("Reached end of content, loading more...");
       try {
         await onLoadMore();
       } catch (error) {
@@ -29,7 +32,7 @@ export function useCarouselNavigation({ scripts, onLoadMore }: UseCarouselNaviga
         setIsLoading(false);
       }
     }
-  };
+  }, [scripts.length, isLoading, onLoadMore]);
 
   // Initialize carousel and set up event listeners when component mounts
   useEffect(() => {
@@ -42,6 +45,7 @@ export function useCarouselNavigation({ scripts, onLoadMore }: UseCarouselNaviga
       handleReachEnd(newIndex);
     };
 
+    console.log("Setting up Embla carousel event listeners");
     emblaApi.on("select", onSelect);
     
     // Force update carousel state on first load
@@ -50,7 +54,7 @@ export function useCarouselNavigation({ scripts, onLoadMore }: UseCarouselNaviga
     return () => {
       emblaApi.off("select", onSelect);
     };
-  }, [emblaApi, scripts.length, onLoadMore]);
+  }, [emblaApi, handleReachEnd]);
 
   // Handle updates to scripts array
   useEffect(() => {
@@ -92,7 +96,7 @@ export function useCarouselNavigation({ scripts, onLoadMore }: UseCarouselNaviga
         handleReachEnd(newIndex);
       }
     }
-  }, [emblaApi, scripts.length]);
+  }, [emblaApi, scripts.length, handleReachEnd]);
 
   return {
     emblaRef,

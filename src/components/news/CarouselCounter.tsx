@@ -8,8 +8,8 @@ interface CarouselCounterProps {
 
 const CarouselCounter: React.FC<CarouselCounterProps> = ({ currentIndex, totalItems }) => {
   return (
-    <div className="flex items-center justify-center mb-4">
-      <span className="text-sm font-medium bg-gray-100 px-3 py-1 rounded-full">
+    <div className="flex items-center justify-center mb-6">
+      <span className="text-sm font-medium bg-gray-100 px-4 py-2 rounded-full shadow-sm border border-gray-200">
         {currentIndex + 1} / {totalItems}
       </span>
     </div>

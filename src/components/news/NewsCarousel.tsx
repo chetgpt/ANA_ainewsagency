@@ -45,7 +45,7 @@ const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
         
         <CarouselContent ref={emblaRef}>
           {scripts.map((script) => (
-            <CarouselItem key={script.id} className="flex justify-center">
+            <CarouselItem key={script.id} className="flex justify-center md:px-4">
               <div className="w-full max-w-4xl px-2">
                 <NewsScriptCard script={script} />
               </div>
@@ -55,6 +55,13 @@ const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
           {isLoading && <LoadingCarouselItem />}
         </CarouselContent>
       </Carousel>
+      
+      {/* Debug info - helps with troubleshooting */}
+      <div className="hidden">
+        <p>Current Index: {currentIndex}</p>
+        <p>Total Items: {scripts.length}</p>
+        <p>Loading: {isLoading ? 'true' : 'false'}</p>
+      </div>
     </div>
   );
 };
