@@ -1,18 +1,27 @@
 
+import { useState } from "react";
 import NewsHeader from "@/components/NewsHeader";
 import NewsList from "@/components/NewsList";
+import NewsSourceSelector, { NEWS_SOURCES, NewsSource } from "@/components/NewsSourceSelector";
 
 const Index = () => {
-  // Default RSS feed (CNN Top Stories)
-  const defaultFeedUrl = "http://rss.cnn.com/rss/cnn_topstories.rss";
-  const sourceName = "CNN Top Stories";
-  const sourceUrl = "https://cnn.com";
+  const [currentSource, setCurrentSource] = useState<NewsSource>(NEWS_SOURCES[0]);
+
+  const handleSourceChange = (newSource: NewsSource) => {
+    setCurrentSource(newSource);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <NewsHeader sourceName={sourceName} sourceUrl={sourceUrl} />
+      <NewsHeader sourceName={currentSource.name} sourceUrl={currentSource.url} />
+      <div className="container mx-auto px-4 pt-4">
+        <NewsSourceSelector 
+          currentSource={currentSource} 
+          onSourceChange={handleSourceChange} 
+        />
+      </div>
       <main className="container mx-auto px-4 py-4 flex-grow">
-        <NewsList feedUrl={defaultFeedUrl} />
+        <NewsList feedUrl={currentSource.feedUrl} />
       </main>
       <footer className="bg-gray-100 border-t border-gray-200 py-4">
         <div className="container mx-auto px-4 text-center text-sm text-gray-600">
