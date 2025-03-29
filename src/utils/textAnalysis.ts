@@ -227,48 +227,158 @@ export async function fullAnalyzeArticle(article: {
   }
 }
 
-// Generate a news script for a news item
-export async function generateNewsScript(newsItem: any): Promise<string> {
-  const title = newsItem.title;
-  const fullContent = newsItem.fullContent || ""; 
-  const description = newsItem.description;
-  const sourceName = newsItem.sourceName;
+// Function to group similar news items based on analysis
+export function groupSimilarNews(newsItems: any[]): any[] {
+  if (!newsItems.length) return [];
   
-  // Try to use LLM for script generation first
-  try {
-    const contentToUse = fullContent || description;
-    return await generateScriptWithLLM(title, contentToUse);
-  } catch (llmError) {
-    console.warn("LLM script generation failed, falling back to local generation:", llmError);
+  // Group by sentiment first
+  const sentimentGroups: Record<string, any[]> = {
+    positive: [],
+    negative: [],
+    neutral: []
+  };
+  
+  // Add each news item to its sentiment group
+  newsItems.forEach(item => {
+    if (item.sentiment) {
+      sentimentGroups[item.sentiment].push(item);
+    }
+  });
+  
+  // For each sentiment group, further group by keywords similarity
+  const result: any[] = [];
+  
+  Object.keys(sentimentGroups).forEach(sentiment => {
+    const itemsInSentiment = sentimentGroups[sentiment];
     
-    // Create a more complete summary from the full content if available
-    let summary = "";
+    // If there's only one item or none in this sentiment, just add it to result
+    if (itemsInSentiment.length <= 1) {
+      result.push(...itemsInSentiment);
+      return;
+    }
     
-    if (fullContent && fullContent.length > description.length) {
-      // Split the content into sentences
-      const sentences = fullContent.match(/[^.!?]+[.!?]+/g) || [];
+    // Keep track of which items we've grouped
+    const processedIndices = new Set<number>();
+    
+    // Loop through each item to find similar ones
+    for (let i = 0; i < itemsInSentiment.length; i++) {
+      if (processedIndices.has(i)) continue;
       
-      // Take the first few sentences for the summary (up to 10)
-      const summaryLength = Math.min(sentences.length, 10);
-      summary = sentences.slice(0, summaryLength).join(' ').trim();
-    } else {
-      summary = description;
+      const currentItem = itemsInSentiment[i];
+      const currentKeywords = new Set(currentItem.keywords || []);
+      const similarItems = [currentItem];
+      processedIndices.add(i);
+      
+      // Check other items for similarity
+      for (let j = i + 1; j < itemsInSentiment.length; j++) {
+        if (processedIndices.has(j)) continue;
+        
+        const compareItem = itemsInSentiment[j];
+        const compareKeywords = new Set(compareItem.keywords || []);
+        
+        // Check for keyword overlap
+        let overlap = 0;
+        currentKeywords.forEach(keyword => {
+          if (compareKeywords.has(keyword)) overlap++;
+        });
+        
+        // If there's significant overlap (at least one keyword in common)
+        if (overlap > 0) {
+          similarItems.push(compareItem);
+          processedIndices.add(j);
+        }
+      }
+      
+      // If we found similar items, group them
+      if (similarItems.length > 1) {
+        result.push({
+          type: 'group',
+          sentiment,
+          items: similarItems,
+          keywords: Array.from(new Set(similarItems.flatMap(item => item.keywords || []))),
+          readingTimeSeconds: similarItems.reduce((total, item) => total + (item.readingTimeSeconds || 0), 0)
+        });
+      } else {
+        // Otherwise, add the single item
+        result.push(similarItems[0]);
+      }
+    }
+  });
+  
+  return result;
+}
+
+// Generate a news script for a group of news items or a single item
+export async function generateNewsScript(newsItem: any): Promise<string> {
+  // Handle grouped news items
+  if (newsItem.type === 'group') {
+    const items = newsItem.items;
+    const sentiment = newsItem.sentiment;
+    const keywords = newsItem.keywords;
+    
+    // Create intro based on sentiment
+    let intro = `A group of ${items.length} related stories with a ${sentiment} outlook. `;
+    
+    if (keywords && keywords.length) {
+      intro += `The key themes include ${keywords.join(', ')}. `;
     }
     
-    let script = `${title}\n\n`;
+    // Create body from each news item
+    let body = `Summary of connected stories:\n\n`;
     
-    if (sourceName) {
-      script += `Source: ${sourceName}\n\n`;
+    items.forEach((item: any, index: number) => {
+      body += `Story ${index + 1}: "${item.title}". `;
+      if (item.sourceName) {
+        body += `From ${item.sourceName}. `;
+      }
+      body += `\n`;
+    });
+    
+    return `${intro}\n\n${body}`;
+  } 
+  // Handle single news item
+  else {
+    const title = newsItem.title;
+    const fullContent = newsItem.fullContent || ""; 
+    const description = newsItem.description;
+    const sourceName = newsItem.sourceName;
+    
+    // Try to use LLM for script generation first
+    try {
+      const contentToUse = fullContent || description;
+      return await generateScriptWithLLM(title, contentToUse);
+    } catch (llmError) {
+      console.warn("LLM script generation failed, falling back to local generation:", llmError);
+      
+      // Create a more complete summary from the full content if available
+      let summary = "";
+      
+      if (fullContent && fullContent.length > description.length) {
+        // Split the content into sentences
+        const sentences = fullContent.match(/[^.!?]+[.!?]+/g) || [];
+        
+        // Take the first few sentences for the summary (up to 10)
+        const summaryLength = Math.min(sentences.length, 10);
+        summary = sentences.slice(0, summaryLength).join(' ').trim();
+      } else {
+        summary = description;
+      }
+      
+      let script = `${title}\n\n`;
+      
+      if (sourceName) {
+        script += `Source: ${sourceName}\n\n`;
+      }
+      
+      // Add the main content summary
+      script += `${summary}\n\n`;
+      
+      // Add keywords if available
+      if (newsItem.keywords && newsItem.keywords.length) {
+        script += `Key topics: ${newsItem.keywords.join(', ')}`;
+      }
+      
+      return script;
     }
-    
-    // Add the main content summary
-    script += `${summary}\n\n`;
-    
-    // Add keywords if available
-    if (newsItem.keywords && newsItem.keywords.length) {
-      script += `Key topics: ${newsItem.keywords.join(', ')}`;
-    }
-    
-    return script;
   }
 }
