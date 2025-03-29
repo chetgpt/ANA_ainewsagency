@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import NewsItem, { NewsItemProps } from "./NewsItem";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -303,10 +304,10 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
 
   const fetchRssFeed = async (forceRefresh = false) => {
     // Try to load from cache first, unless force refresh is requested
-    const cachedNews = loadCachedNews();
-    if (!forceRefresh && cachedNews) {
+    const cachedNews = !forceRefresh ? loadCachedNews() : null;
+    if (cachedNews) {
       // Filter cached news to only include items from the last day
-      const filteredItems = cachedNews.items.filter(item => isWithinLastDay(item.pubDate));
+      const filteredItems = cachedNews.items.filter((item: CachedNewsItem) => isWithinLastDay(item.pubDate));
       setNewsItems(filteredItems);
       
       // Check if there are any items that haven't been summarized yet from cache
