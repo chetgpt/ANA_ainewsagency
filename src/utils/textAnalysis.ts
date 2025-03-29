@@ -183,3 +183,147 @@ export async function fullAnalyzeArticle(article: {
     throw error;
   }
 }
+
+// Function to group similar news items based on analysis
+export function groupSimilarNews(newsItems: any[]): any[] {
+  if (!newsItems.length) return [];
+  
+  // Group by sentiment first
+  const sentimentGroups: Record<string, any[]> = {
+    positive: [],
+    negative: [],
+    neutral: []
+  };
+  
+  // Add each news item to its sentiment group
+  newsItems.forEach(item => {
+    if (item.sentiment) {
+      sentimentGroups[item.sentiment].push(item);
+    }
+  });
+  
+  // For each sentiment group, further group by keywords similarity
+  const result: any[] = [];
+  
+  Object.keys(sentimentGroups).forEach(sentiment => {
+    const itemsInSentiment = sentimentGroups[sentiment];
+    
+    // If there's only one item or none in this sentiment, just add it to result
+    if (itemsInSentiment.length <= 1) {
+      result.push(...itemsInSentiment);
+      return;
+    }
+    
+    // Keep track of which items we've grouped
+    const processedIndices = new Set<number>();
+    
+    // Loop through each item to find similar ones
+    for (let i = 0; i < itemsInSentiment.length; i++) {
+      if (processedIndices.has(i)) continue;
+      
+      const currentItem = itemsInSentiment[i];
+      const currentKeywords = new Set(currentItem.keywords || []);
+      const similarItems = [currentItem];
+      processedIndices.add(i);
+      
+      // Check other items for similarity
+      for (let j = i + 1; j < itemsInSentiment.length; j++) {
+        if (processedIndices.has(j)) continue;
+        
+        const compareItem = itemsInSentiment[j];
+        const compareKeywords = new Set(compareItem.keywords || []);
+        
+        // Check for keyword overlap
+        let overlap = 0;
+        currentKeywords.forEach(keyword => {
+          if (compareKeywords.has(keyword)) overlap++;
+        });
+        
+        // If there's significant overlap (at least one keyword in common)
+        if (overlap > 0) {
+          similarItems.push(compareItem);
+          processedIndices.add(j);
+        }
+      }
+      
+      // If we found similar items, group them
+      if (similarItems.length > 1) {
+        result.push({
+          type: 'group',
+          sentiment,
+          items: similarItems,
+          keywords: Array.from(new Set(similarItems.flatMap(item => item.keywords || []))),
+          readingTimeSeconds: similarItems.reduce((total, item) => total + (item.readingTimeSeconds || 0), 0)
+        });
+      } else {
+        // Otherwise, add the single item
+        result.push(similarItems[0]);
+      }
+    }
+  });
+  
+  return result;
+}
+
+// Generate a news script for a group of news items or a single item
+export function generateNewsScript(newsItem: any): string {
+  // Handle grouped news items
+  if (newsItem.type === 'group') {
+    const items = newsItem.items;
+    const sentiment = newsItem.sentiment;
+    const keywords = newsItem.keywords;
+    const readingTime = Math.round(newsItem.readingTimeSeconds / 60);
+    
+    // Create intro based on sentiment
+    let intro = `Today we're discussing a group of ${items.length} related stories with a ${sentiment} outlook. `;
+    
+    if (keywords && keywords.length) {
+      intro += `The key themes include ${keywords.join(', ')}. `;
+    }
+    
+    // Create body from each news item
+    let body = `Let's summarize these connected stories:\n\n`;
+    
+    items.forEach((item: any, index: number) => {
+      body += `Story ${index + 1}: "${item.title}". `;
+      if (item.sourceName) {
+        body += `Reported by ${item.sourceName}. `;
+      }
+      body += `\n`;
+    });
+    
+    // Create conclusion
+    let conclusion = `\nThese combined stories will take approximately ${readingTime} minutes to read in full. `;
+    conclusion += `The overall sentiment across these stories is ${sentiment}. `;
+    
+    return `${intro}\n\n${body}\n${conclusion}`;
+  } 
+  // Handle single news item
+  else {
+    const title = newsItem.title;
+    const description = newsItem.description;
+    const sentiment = newsItem.sentiment;
+    const keywords = newsItem.keywords;
+    const sourceName = newsItem.sourceName;
+    const readingTimeMinutes = Math.round(newsItem.readingTimeSeconds / 60) || 1;
+    
+    // Create intro
+    let intro = `Today we're discussing "${title}" with a ${sentiment} outlook. `;
+    
+    if (sourceName) {
+      intro += `This story comes to us from ${sourceName}. `;
+    }
+    
+    // Create body
+    let body = `${description} `;
+    
+    if (keywords && keywords.length) {
+      body += `\n\nThe key points include ${keywords.join(', ')}. `;
+    }
+    
+    // Create conclusion
+    let conclusion = `\nThis story will take approximately ${readingTimeMinutes} minute${readingTimeMinutes !== 1 ? 's' : ''} to read in full. `;
+    
+    return `${intro}\n\n${body}\n${conclusion}`;
+  }
+}
