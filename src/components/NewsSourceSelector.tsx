@@ -34,6 +34,31 @@ export const NEWS_SOURCES: NewsSource[] = [
     name: "The Guardian",
     url: "https://www.theguardian.com/international",
     feedUrl: "https://www.theguardian.com/world/rss",
+  },
+  {
+    name: "Washington Post",
+    url: "https://www.washingtonpost.com/",
+    feedUrl: "https://feeds.washingtonpost.com/rss/world",
+  },
+  {
+    name: "Al Jazeera",
+    url: "https://www.aljazeera.com/",
+    feedUrl: "https://www.aljazeera.com/xml/rss/all.xml",
+  },
+  {
+    name: "ABC News",
+    url: "https://abcnews.go.com",
+    feedUrl: "https://abcnews.go.com/abcnews/topstories",
+  },
+  {
+    name: "New York Times",
+    url: "https://www.nytimes.com/",
+    feedUrl: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+  },
+  {
+    name: "AP News",
+    url: "https://apnews.com/",
+    feedUrl: "https://rsshub.app/apnews/topics/apf-topnews",
   }
 ];
 

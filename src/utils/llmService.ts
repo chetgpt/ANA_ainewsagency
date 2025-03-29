@@ -1,4 +1,3 @@
-
 /**
  * This file contains utilities for interacting with LLM APIs
  */
@@ -8,6 +7,14 @@ interface LLMResponse {
   summary: string;
   sentiment: "positive" | "negative" | "neutral";
   keywords: string[];
+}
+
+// Interface for media identification response
+interface MediaIdentificationResponse {
+  hasImage: boolean;
+  hasVideo: boolean;
+  imageUrls?: string[];
+  videoUrls?: string[];
 }
 
 // LLM Provider types
@@ -71,6 +78,37 @@ export async function analyzeLLM(title: string, content: string): Promise<LLMRes
   } catch (error) {
     console.error("Error using LLM service:", error);
     return fallbackAnalysis(title, content);
+  }
+}
+
+// Function to detect if content is not news using an LLM
+export async function detectNonNewsWithLLM(title: string, content: string): Promise<boolean> {
+  try {
+    // Get API keys from environment variables or localStorage
+    const perplexityApiKey = getApiKey('VITE_LLM_API_KEY');
+    const geminiApiKey = getApiKey('VITE_GEMINI_API_KEY');
+    
+    // Determine which provider to use (prefer Gemini if available)
+    const provider: LLMProvider = geminiApiKey ? "gemini" : "perplexity";
+    const apiKey = provider === "gemini" ? geminiApiKey : perplexityApiKey;
+    
+    // If no API key is available, assume it is news content
+    if (!apiKey) {
+      console.warn("No LLM API key provided. Assuming this is news content.");
+      return true;
+    }
+    
+    console.log(`Using ${provider} for news content detection with API key length: ${apiKey.length}`);
+    
+    if (provider === "gemini") {
+      return detectNonNewsWithGemini(title, content, apiKey);
+    } else {
+      return detectNonNewsWithPerplexity(title, content, apiKey);
+    }
+  } catch (error) {
+    console.error("Error using LLM for content detection:", error);
+    // Default to assuming it's news content in case of errors
+    return true;
   }
 }
 
@@ -206,6 +244,100 @@ async function analyzeWithPerplexity(title: string, content: string, apiKey: str
   }
 }
 
+// Function to detect non-news content with Gemini
+async function detectNonNewsWithGemini(title: string, content: string, apiKey: string): Promise<boolean> {
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: `You are a news content analyzer.
+                Given the following title and content, determine if this is a news article or not.
+                Non-news content includes: advertisements, opinion pieces, editorials, podcasts, webinars, 
+                quizzes, promotions, product reviews, entertainment listings, etc.
+                
+                Title: ${title}
+                
+                Content: ${content && content.length > 1000 ? content.substring(0, 1000) + "..." : content}
+                
+                Respond with just "true" if it is real news content or "false" if it is not news content.`
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 10,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Gemini API error details:", errorData);
+      return true; // Default to true (is news) on error
+    }
+
+    const data = await response.json();
+    const result = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toLowerCase();
+    
+    // Return true if it's news content (returned "true")
+    return result === "true";
+  } catch (error) {
+    console.error("Error detecting non-news with Gemini:", error);
+    return true; // Default to true (is news) on error
+  }
+}
+
+// Function to detect non-news content with Perplexity
+async function detectNonNewsWithPerplexity(title: string, content: string, apiKey: string): Promise<boolean> {
+  try {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-sonar-small-128k-online',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a news content analyzer. Given a title and content, 
+            determine if this is a news article or not. 
+            Non-news content includes: advertisements, opinion pieces, editorials, 
+            podcasts, webinars, quizzes, promotions, product reviews, entertainment listings, etc.
+            Respond with just "true" if it is real news content or "false" if it is not news content.`
+          },
+          {
+            role: 'user',
+            content: `Title: ${title}\n\nContent: ${content && content.length > 1000 ? content.substring(0, 1000) + "..." : content}`
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 10,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Perplexity API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const result = data.choices[0].message.content.trim().toLowerCase();
+    
+    // Return true if it's news content (returned "true")
+    return result === "true";
+  } catch (error) {
+    console.error("Error detecting non-news with Perplexity:", error);
+    return true; // Default to true (is news) on error
+  }
+}
+
 // Fallback function to use when the LLM API is unavailable
 function fallbackAnalysis(title: string, content: string): LLMResponse {
   // Create a basic summary from first 2 sentences or 150 chars
@@ -257,6 +389,164 @@ function fallbackAnalysis(title: string, content: string): LLMResponse {
     sentiment,
     keywords
   };
+}
+
+// Function to identify media content with LLM
+export async function identifyMediaWithLLM(title: string, content: string): Promise<MediaIdentificationResponse> {
+  try {
+    // Get API keys from environment variables or localStorage
+    const perplexityApiKey = getApiKey('VITE_LLM_API_KEY');
+    const geminiApiKey = getApiKey('VITE_GEMINI_API_KEY');
+    
+    // Determine which provider to use (prefer Gemini if available)
+    const provider: LLMProvider = geminiApiKey ? "gemini" : "perplexity";
+    const apiKey = provider === "gemini" ? geminiApiKey : perplexityApiKey;
+    
+    // If no API key is available, return default response
+    if (!apiKey) {
+      console.warn("No LLM API key provided for media identification. Using default response.");
+      return { hasImage: false, hasVideo: false };
+    }
+    
+    console.log(`Using ${provider} for media identification with API key length: ${apiKey.length}`);
+    
+    if (provider === "gemini") {
+      return identifyMediaWithGemini(title, content, apiKey);
+    } else {
+      return identifyMediaWithPerplexity(title, content, apiKey);
+    }
+  } catch (error) {
+    console.error("Error using LLM for media identification:", error);
+    return { hasImage: false, hasVideo: false };
+  }
+}
+
+// Function to identify media with Gemini
+async function identifyMediaWithGemini(title: string, content: string, apiKey: string): Promise<MediaIdentificationResponse> {
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: `You are a media content analyzer.
+                Based on the following article title and content, determine if the article likely contains 
+                or refers to images or videos that would be important for understanding the content.
+                
+                Title: ${title}
+                
+                Content: ${content && content.length > 1000 ? content.substring(0, 1000) + "..." : content}
+                
+                Return a JSON object with these fields:
+                - hasImage: boolean (true if article likely has or needs images)
+                - hasVideo: boolean (true if article likely has or needs videos)
+                - imageUrls: array of strings with potential image URLs in the content (can be empty)
+                - videoUrls: array of strings with potential video URLs in the content (can be empty)
+                
+                Respond ONLY with valid JSON.`
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 500,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Gemini API error details:", errorData);
+      return { hasImage: false, hasVideo: false };
+    }
+
+    const data = await response.json();
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!content) {
+      throw new Error("Unexpected response format from Gemini API");
+    }
+    
+    try {
+      // Parse the JSON from the content
+      const result = JSON.parse(content);
+      return {
+        hasImage: Boolean(result.hasImage),
+        hasVideo: Boolean(result.hasVideo),
+        imageUrls: result.imageUrls,
+        videoUrls: result.videoUrls
+      };
+    } catch (parseError) {
+      console.error("Error parsing Gemini response:", parseError);
+      return { hasImage: false, hasVideo: false };
+    }
+  } catch (error) {
+    console.error("Error identifying media with Gemini:", error);
+    return { hasImage: false, hasVideo: false };
+  }
+}
+
+// Function to identify media with Perplexity
+async function identifyMediaWithPerplexity(title: string, content: string, apiKey: string): Promise<MediaIdentificationResponse> {
+  try {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-sonar-small-128k-online',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a media content analyzer.
+            Based on the article title and content, determine if the article likely contains 
+            or refers to images or videos that would be important for understanding the content.
+            Return a JSON object with these fields:
+            - hasImage: boolean (true if article likely has or needs images)
+            - hasVideo: boolean (true if article likely has or needs videos)
+            - imageUrls: array of strings with potential image URLs in the content (can be empty)
+            - videoUrls: array of strings with potential video URLs in the content (can be empty)
+            Respond ONLY with valid JSON.`
+          },
+          {
+            role: 'user',
+            content: `Title: ${title}\n\nContent: ${content && content.length > 1000 ? content.substring(0, 1000) + "..." : content}`
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 500,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Perplexity API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const responseContent = data.choices[0].message.content;
+    
+    try {
+      const result = JSON.parse(responseContent);
+      return {
+        hasImage: Boolean(result.hasImage),
+        hasVideo: Boolean(result.hasVideo),
+        imageUrls: result.imageUrls,
+        videoUrls: result.videoUrls
+      };
+    } catch (parseError) {
+      console.error("Error parsing Perplexity response:", parseError);
+      return { hasImage: false, hasVideo: false };
+    }
+  } catch (error) {
+    console.error("Error identifying media with Perplexity:", error);
+    return { hasImage: false, hasVideo: false };
+  }
 }
 
 // Generate a news script using LLM
