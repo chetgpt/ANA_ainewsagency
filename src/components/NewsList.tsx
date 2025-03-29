@@ -478,6 +478,17 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       // Use existing state for comparison
       const currentItemsState = newsItems.length > 0 ? newsItems : (cachedNews?.items || []);
       const currentItemsMap = new Map(currentItemsState.map(item => [item.id, item],));
+
+      // Define regex patterns for filtering out non-news items
+      const nonNewsTitlePattern = /^\d{1,2}\/\d{1,2}:\s+CBS\s+Evening\s+News(\s+Plus)?$/i;
+      const videoOnlyPattern = /adapt or die/i; // Example for specific video titles if needed
+      
+      // Helper function to decode HTML entities
+      const decodeHtmlEntities = (text: string): string => {
+        const textArea = document.createElement('textarea');
+        textArea.innerHTML = text;
+        return textArea.value;
+      };
       
       // Process each RSS item
       items.forEach((item, index) => {
@@ -499,16 +510,42 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
           }
         }
         
-        const title = item.querySelector("title")?.textContent || "No title";
+        // Get and decode title
+        const titleEl = item.querySelector("title");
+        let title = titleEl?.textContent || "No title";
+        title = decodeHtmlEntities(title);
+
         const pubDateStr = item.querySelector("pubDate")?.textContent || new Date().toUTCString();
         const link = item.querySelector("link")?.textContent || "#";
-        const description = item.querySelector("description")?.textContent || "";
+        
+        // Get and decode description
+        const descriptionEl = item.querySelector("description");
+        let description = "";
+        if (descriptionEl) {
+          if (descriptionEl.firstChild && descriptionEl.firstChild.nodeType === Node.CDATA_SECTION_NODE) {
+            description = descriptionEl.firstChild.textContent || "";
+          } else {
+            description = descriptionEl.textContent || "";
+          }
+          description = decodeHtmlEntities(description);
+        }
         
         console.log(`Item ${index + 1}: "${title}" (${pubDateStr})`);
         
         // Skip items that are older than one day
         if (!isWithinLastDay(pubDateStr)) {
           console.log(`Skipping item "${title}" - older than 24 hours`);
+          return;
+        }
+        
+        // Apply filtering based on title patterns
+        if (nonNewsTitlePattern.test(title)) {
+          console.log(`Skipping item "${title}" - matches non-news title pattern`);
+          return;
+        }
+        
+        if (videoOnlyPattern.test(title)) {
+          console.log(`Skipping item "${title}" - matches video-only pattern`);
           return;
         }
         
