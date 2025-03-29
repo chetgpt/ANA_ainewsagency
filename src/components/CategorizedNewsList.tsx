@@ -1,16 +1,17 @@
-
 import { useState, useEffect } from "react";
 import { Loader2, FileText, Copy, Newspaper } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { generateNewsScript, analyzeSentiment, extractKeywords, calculateReadingTime, fetchArticleContent } from "@/utils/textAnalysis";
+import { generateNewsScript, analyzeSentiment, extractKeywords, calculateReadingTime, fetchArticleContent, groupSimilarNews } from "@/utils/textAnalysis";
 import { Button } from "@/components/ui/button";
 import { checkApiAvailability } from "@/utils/llmService";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { NEWS_SOURCES } from "./NewsSourceSelector";
 
 interface CategorizedNewsListProps {
   selectedCategory: string;
+  refreshTrigger?: number;
 }
 
 // Define the script type outside the component to improve readability
@@ -26,12 +27,15 @@ interface NewsScript {
     pubDate: string;
     sourceName: string;
     link: string;
+    mediaUrl?: string;
+    mediaType?: "image" | "video";
   }
 }
 
-const MAX_NEWS_ITEMS = 10; // Increased from 5 to 10 maximum news items to fetch and process
+const MAX_NEWS_ITEMS_PER_SOURCE = 3; // Get 3 items from each source
+const MAX_TOTAL_NEWS_ITEMS = 20; // Max total items to process
 
-const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => {
+const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: CategorizedNewsListProps) => {
   const [loading, setLoading] = useState(true);
   const [apiStatus, setApiStatus] = useState<{
     geminiAvailable: boolean;
@@ -54,160 +58,255 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   }, []);
 
   useEffect(() => {
-    const fetchMultipleNewsItems = async () => {
-      setLoading(true);
+    fetchAllNewsSources();
+  }, [toast, refreshTrigger]);
+
+  // Fetch news from all sources
+  const fetchAllNewsSources = async () => {
+    setLoading(true);
+    toast({
+      title: "Fetching News",
+      description: "Getting the latest news from multiple sources...",
+    });
+    
+    try {
+      // Array to store all news items from different sources
+      let allNewsItems: any[] = [];
       
-      try {
-        // Use ABC News RSS feed with a CORS proxy
-        const corsProxy = "https://api.allorigins.win/raw?url=";
-        const rssUrl = "https://abcnews.go.com/abcnews/topstories";
-        const response = await fetch(`${corsProxy}${encodeURIComponent(rssUrl)}`);
+      // Fetch from each news source
+      for (const source of NEWS_SOURCES) {
+        try {
+          const items = await fetchNewsFromSource(source.feedUrl, source.name);
+          allNewsItems = [...allNewsItems, ...items];
+        } catch (error) {
+          console.error(`Error fetching from ${source.name}:`, error);
+          // Continue with other sources if one fails
+        }
+      }
+      
+      // Sort all items by date (newest first)
+      allNewsItems.sort((a, b) => {
+        const dateA = new Date(a.pubDate).getTime();
+        const dateB = new Date(b.pubDate).getTime();
+        return dateB - dateA;
+      });
+      
+      // Limit to max total items
+      allNewsItems = allNewsItems.slice(0, MAX_TOTAL_NEWS_ITEMS);
+      
+      // Group similar news items using LLM
+      const groupedItems = groupSimilarNews(allNewsItems);
+      
+      // Process grouped items into scripts
+      const newsScripts: NewsScript[] = [];
+      
+      for (const item of groupedItems) {
+        try {
+          // Check if this is a group or individual item
+          if (item.type === 'group') {
+            // Handle group of similar news
+            const groupScript = await generateNewsScript(item);
+            
+            const scriptData: NewsScript = {
+              title: `Combined: ${item.items[0].title}`,
+              content: groupScript,
+              type: 'group',
+              summary: {
+                description: groupScript.substring(0, 150) + "...",
+                sentiment: item.sentiment,
+                keywords: item.keywords,
+                readingTimeSeconds: item.readingTimeSeconds,
+                pubDate: item.items[0].pubDate,
+                sourceName: item.items.map((i: any) => i.sourceName).join(', '),
+                link: item.items[0].link,
+              }
+            };
+            
+            // Add first item's media if available
+            if (item.items[0].mediaUrl) {
+              scriptData.summary!.mediaUrl = item.items[0].mediaUrl;
+              scriptData.summary!.mediaType = item.items[0].mediaType;
+            }
+            
+            newsScripts.push(scriptData);
+          } else {
+            // Handle individual news item
+            const newsScript = await generateNewsScript(item);
+            
+            const scriptData: NewsScript = {
+              title: item.title,
+              content: newsScript,
+              type: 'single',
+              summary: {
+                description: item.description,
+                sentiment: item.sentiment,
+                keywords: item.keywords,
+                readingTimeSeconds: item.readingTimeSeconds,
+                pubDate: item.pubDate,
+                sourceName: item.sourceName,
+                link: item.link
+              }
+            };
+            
+            // Add media if available
+            if (item.mediaUrl) {
+              scriptData.summary!.mediaUrl = item.mediaUrl;
+              scriptData.summary!.mediaType = item.mediaType;
+            }
+            
+            newsScripts.push(scriptData);
+          }
+        } catch (error) {
+          console.error("Error processing news item:", error);
+        }
+      }
+      
+      setScripts(newsScripts);
+      
+      toast({
+        title: "News Summaries Generated",
+        description: `${newsScripts.length} latest news summaries have been created`,
+      });
+    } catch (error) {
+      console.error("Error fetching news:", error);
+      
+      setScripts([]);
+      toast({
+        title: "Error Fetching News",
+        description: "Couldn't fetch news from sources. Please try again later.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper function to fetch news from a single source
+  const fetchNewsFromSource = async (feedUrl: string, sourceName: string) => {
+    try {
+      // Try to get from cache first
+      const cacheKey = `news-cache-${feedUrl}`;
+      const cachedData = localStorage.getItem(cacheKey);
+      
+      if (cachedData) {
+        const { items, timestamp } = JSON.parse(cachedData);
+        const cacheTime = new Date(timestamp);
+        const now = new Date();
         
-        if (!response.ok) {
-          throw new Error(`Failed to fetch RSS feed: ${response.status}`);
+        // If cache is less than 30 minutes old, use it
+        if ((now.getTime() - cacheTime.getTime()) < 30 * 60 * 1000) {
+          console.log(`Using cached data for ${sourceName}`);
+          return items;
+        }
+      }
+      
+      // Otherwise fetch fresh data
+      const corsProxy = "https://api.allorigins.win/raw?url=";
+      const response = await fetch(`${corsProxy}${encodeURIComponent(feedUrl)}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch RSS feed: ${response.status}`);
+      }
+      
+      const data = await response.text();
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(data, "text/xml");
+      
+      const items = xmlDoc.querySelectorAll("item");
+      const parsedItems: any[] = [];
+      
+      // Process only a limited number of items per source
+      const itemsToProcess = Math.min(items.length, MAX_NEWS_ITEMS_PER_SOURCE);
+      
+      for (let i = 0; i < itemsToProcess; i++) {
+        const item = items[i];
+        
+        // Extract basic information
+        const title = item.querySelector("title")?.textContent || "No title";
+        const description = item.querySelector("description")?.textContent || "";
+        const pubDate = item.querySelector("pubDate")?.textContent || new Date().toUTCString();
+        const link = item.querySelector("link")?.textContent || "#";
+        
+        // Find images or videos in the content
+        let mediaUrl;
+        let mediaType: "image" | "video" | undefined;
+        
+        // Check for media:content or enclosure tags
+        const mediaContent = item.querySelector("media\\:content, content");
+        const enclosure = item.querySelector("enclosure");
+        
+        if (mediaContent && mediaContent.getAttribute("url")) {
+          mediaUrl = mediaContent.getAttribute("url") || "";
+          const contentType = mediaContent.getAttribute("type") || "";
+          mediaType = contentType.startsWith("video/") ? "video" : "image";
+        } else if (enclosure && enclosure.getAttribute("url")) {
+          mediaUrl = enclosure.getAttribute("url") || "";
+          const contentType = enclosure.getAttribute("type") || "";
+          mediaType = contentType.startsWith("video/") ? "video" : "image";
+        } else {
+          // Try to extract image from description
+          const imgMatch = description.match(/<img[^>]+src="([^">]+)"/);
+          if (imgMatch && imgMatch[1]) {
+            mediaUrl = imgMatch[1];
+            mediaType = "image";
+          }
+          
+          // Try to extract video from description
+          const videoMatch = description.match(/<video[^>]+src="([^">]+)"|<iframe[^>]+src="([^">]+)"/);
+          if (videoMatch && (videoMatch[1] || videoMatch[2])) {
+            mediaUrl = videoMatch[1] || videoMatch[2];
+            mediaType = "video";
+          }
         }
         
-        const data = await response.text();
-        console.log("RSS data fetched successfully with length:", data.length);
+        // Analyze content
+        const combinedText = title + " " + description;
+        const sentiment = analyzeSentiment(combinedText);
+        const keywords = extractKeywords(combinedText, 3);
+        const readingTimeSeconds = calculateReadingTime(description);
         
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(data, "text/xml");
+        // Check if this is actually news content using keywords
+        const newsKeywords = ["news", "report", "update", "latest", "breaking", "today", "yesterday", "announces", "announced", "published"];
+        const isNewsContent = keywords.some(keyword => newsKeywords.includes(keyword.toLowerCase())) || 
+          title.toLowerCase().includes("news") || 
+          newsKeywords.some(kw => title.toLowerCase().includes(kw));
         
-        // Get all items from the feed
-        const allItems = xmlDoc.querySelectorAll("item");
-        console.log(`Found ${allItems.length} items in the RSS feed`);
-        
-        // Sort items by date (newest first) if they have pubDate
-        const sortedItems: Element[] = [];
-        allItems.forEach(item => sortedItems.push(item));
-        
-        sortedItems.sort((a, b) => {
-          const dateA = new Date(a.querySelector("pubDate")?.textContent || "").getTime();
-          const dateB = new Date(b.querySelector("pubDate")?.textContent || "").getTime();
-          return dateB - dateA; // Sort in descending order (newest first)
-        });
-        
-        // Process multiple items (limited to MAX_NEWS_ITEMS)
-        const itemsToProcess = Math.min(sortedItems.length, MAX_NEWS_ITEMS);
-        const newsScripts: NewsScript[] = [];
-        
-        for (let i = 0; i < itemsToProcess; i++) {
-          const item = sortedItems[i];
-          
-          // Extract the item data
-          const title = item.querySelector("title")?.textContent || "No title";
-          const description = item.querySelector("description")?.textContent || "";
-          const pubDate = item.querySelector("pubDate")?.textContent || new Date().toUTCString();
-          const link = item.querySelector("link")?.textContent || "#";
-          
-          console.log(`Processing news item ${i+1}:`, { 
-            title, 
-            description: description.substring(0, 50) + "...", 
-            pubDate 
-          });
-          
-          // Use description for analysis (simplified for multiple items)
-          const contentToAnalyze = description;
-          const combinedText = title + " " + contentToAnalyze;
-          
-          // Perform simple analysis
-          const sentiment = analyzeSentiment(combinedText);
-          const keywords = extractKeywords(combinedText, 3);
-          const readingTimeSeconds = calculateReadingTime(contentToAnalyze);
-          
-          // Create a news item object with the required information
+        // Only include if it seems like news content
+        if (isNewsContent || true) { // For now include all, LLM will filter later
           const newsItem = {
             title,
             description,
-            fullContent: description, // Use description as full content to speed up processing
+            fullContent: description,
             sentiment,
             keywords,
             readingTimeSeconds,
             pubDate,
             link,
-            sourceName: "ABC News",
+            sourceName,
+            mediaUrl,
+            mediaType
           };
           
-          // Generate a script for the news item
-          const newsScript = await generateNewsScript(newsItem);
-          
-          const scriptData = {
-            title: newsItem.title,
-            content: newsScript,
-            type: 'single',
-            summary: {
-              description: newsItem.description,
-              sentiment: newsItem.sentiment,
-              keywords: newsItem.keywords,
-              readingTimeSeconds: newsItem.readingTimeSeconds,
-              pubDate: newsItem.pubDate,
-              sourceName: newsItem.sourceName,
-              link: newsItem.link
-            }
-          };
-          
-          newsScripts.push(scriptData);
+          parsedItems.push(newsItem);
         }
-        
-        setScripts(newsScripts);
-        
-        toast({
-          title: "News Summaries Generated",
-          description: `${newsScripts.length} latest news summaries have been created`,
-        });
-      } catch (error) {
-        console.error("Error fetching news:", error);
-        
-        // Fallback to sample data if fetching fails
-        const sampleNewsScripts: NewsScript[] = [];
-        
-        for (let i = 0; i < 3; i++) {
-          const sampleNewsItem = {
-            title: `Sample News ${i + 1} from ABC News`,
-            description: `This is sample news article ${i + 1} to demonstrate the functionality when the actual feed cannot be fetched.`,
-            fullContent: `This is sample news article ${i + 1} from ABC News to demonstrate the functionality when the actual feed cannot be fetched. The content is shown here as a placeholder.`,
-            sentiment: "neutral" as const,
-            keywords: ["ABC News", "sample", "news"],
-            readingTimeSeconds: 60 + i * 30,
-            pubDate: new Date().toUTCString(),
-            link: "#",
-            sourceName: "ABC News",
-          };
-          
-          const newsScript = await generateNewsScript(sampleNewsItem);
-          
-          const scriptData = {
-            title: sampleNewsItem.title,
-            content: newsScript,
-            type: 'single',
-            summary: {
-              description: sampleNewsItem.description,
-              sentiment: sampleNewsItem.sentiment,
-              keywords: sampleNewsItem.keywords,
-              readingTimeSeconds: sampleNewsItem.readingTimeSeconds,
-              pubDate: sampleNewsItem.pubDate,
-              sourceName: sampleNewsItem.sourceName,
-              link: sampleNewsItem.link
-            }
-          };
-          
-          sampleNewsScripts.push(scriptData);
-        }
-        
-        setScripts(sampleNewsScripts);
-        
-        toast({
-          title: "Using Sample Data",
-          description: "Couldn't fetch news, using sample data instead",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
       }
-    };
-    
-    fetchMultipleNewsItems();
-  }, [toast]);
+      
+      // Save to cache
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          items: parsedItems,
+          timestamp: new Date().toISOString()
+        }));
+      } catch (error) {
+        console.error("Error saving to cache:", error);
+      }
+      
+      return parsedItems;
+    } catch (error) {
+      console.error(`Error fetching from ${sourceName}:`, error);
+      throw error;
+    }
+  };
 
   const formatReadingTime = (seconds: number) => {
     return seconds < 60 
@@ -221,108 +320,8 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   };
 
   // Add refresh function to get the latest news
-  const refreshNews = async () => {
-    setLoading(true);
-    toast({
-      title: "Refreshing News",
-      description: "Fetching the latest news updates...",
-    });
-    
-    try {
-      // Fetch the latest news again
-      const corsProxy = "https://api.allorigins.win/raw?url=";
-      const rssUrl = "https://abcnews.go.com/abcnews/topstories";
-      const response = await fetch(`${corsProxy}${encodeURIComponent(rssUrl)}`, {
-        cache: "no-store" // Ensure we don't use cached data
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch RSS feed: ${response.status}`);
-      }
-      
-      const data = await response.text();
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(data, "text/xml");
-      
-      const allItems = xmlDoc.querySelectorAll("item");
-      
-      // Sort items by date (newest first)
-      const sortedItems: Element[] = [];
-      allItems.forEach(item => sortedItems.push(item));
-      
-      sortedItems.sort((a, b) => {
-        const dateA = new Date(a.querySelector("pubDate")?.textContent || "").getTime();
-        const dateB = new Date(b.querySelector("pubDate")?.textContent || "").getTime();
-        return dateB - dateA;
-      });
-      
-      const itemsToProcess = Math.min(sortedItems.length, MAX_NEWS_ITEMS);
-      const newsScripts: NewsScript[] = [];
-      
-      for (let i = 0; i < itemsToProcess; i++) {
-        const item = sortedItems[i];
-        
-        const title = item.querySelector("title")?.textContent || "No title";
-        const description = item.querySelector("description")?.textContent || "";
-        const pubDate = item.querySelector("pubDate")?.textContent || new Date().toUTCString();
-        const link = item.querySelector("link")?.textContent || "#";
-        
-        const contentToAnalyze = description;
-        const combinedText = title + " " + contentToAnalyze;
-        
-        const sentiment = analyzeSentiment(combinedText);
-        const keywords = extractKeywords(combinedText, 3);
-        const readingTimeSeconds = calculateReadingTime(contentToAnalyze);
-        
-        const newsItem = {
-          title,
-          description,
-          fullContent: description,
-          sentiment,
-          keywords,
-          readingTimeSeconds,
-          pubDate,
-          link,
-          sourceName: "ABC News",
-        };
-        
-        const newsScript = await generateNewsScript(newsItem);
-        
-        const scriptData = {
-          title: newsItem.title,
-          content: newsScript,
-          type: 'single',
-          summary: {
-            description: newsItem.description,
-            sentiment: newsItem.sentiment,
-            keywords: newsItem.keywords,
-            readingTimeSeconds: newsItem.readingTimeSeconds,
-            pubDate: newsItem.pubDate,
-            sourceName: newsItem.sourceName,
-            link: newsItem.link
-          }
-        };
-        
-        newsScripts.push(scriptData);
-      }
-      
-      setScripts(newsScripts);
-      setCurrentPage(0); // Reset to first page
-      
-      toast({
-        title: "News Updated",
-        description: `${newsScripts.length} latest news summaries have been refreshed`,
-      });
-    } catch (error) {
-      console.error("Error refreshing news:", error);
-      toast({
-        title: "Refresh Failed",
-        description: "Couldn't refresh the news feed. Please try again later.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
+  const refreshNews = () => {
+    fetchAllNewsSources();
   };
 
   if (loading) {
@@ -339,9 +338,6 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">News Summaries</h2>
         <div className="flex items-center gap-3">
-          <div className="text-sm text-gray-500">
-            Showing {scripts.length} latest articles from ABC News
-          </div>
           <button
             onClick={refreshNews}
             className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
@@ -385,6 +381,39 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
                   </div>
                 </CardHeader>
                 <CardContent>
+                  {/* Display media if available */}
+                  {script.summary?.mediaUrl && script.summary.mediaType === "image" && (
+                    <div className="mb-4">
+                      <img 
+                        src={script.summary.mediaUrl} 
+                        alt={script.title} 
+                        className="w-full h-auto rounded-md object-cover max-h-64"
+                        onError={(e) => {
+                          // Hide image on error
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
+                  
+                  {script.summary?.mediaUrl && script.summary.mediaType === "video" && (
+                    <div className="mb-4">
+                      <div className="relative pt-[56.25%]">
+                        <iframe 
+                          src={script.summary.mediaUrl}
+                          className="absolute top-0 left-0 w-full h-full rounded-md"
+                          frameBorder="0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          onError={(e) => {
+                            // Hide video on error
+                            (e.target as HTMLIFrameElement).style.display = 'none';
+                          }}
+                        ></iframe>
+                      </div>
+                    </div>
+                  )}
+                  
                   <div className="bg-gray-50 p-4 rounded-md border mb-4">
                     <div className="whitespace-pre-wrap text-sm">{script.content}</div>
                   </div>

@@ -11,11 +11,6 @@ export interface NewsSource {
 
 export const NEWS_SOURCES: NewsSource[] = [
   {
-    name: "CNN Top Stories",
-    url: "https://cnn.com",
-    feedUrl: "http://rss.cnn.com/rss/cnn_topstories.rss",
-  },
-  {
     name: "BBC World",
     url: "https://www.bbc.com/news/world",
     feedUrl: "http://feeds.bbci.co.uk/news/world/rss.xml",
@@ -34,6 +29,26 @@ export const NEWS_SOURCES: NewsSource[] = [
     name: "The Guardian",
     url: "https://www.theguardian.com/international",
     feedUrl: "https://www.theguardian.com/world/rss",
+  },
+  {
+    name: "ABC News",
+    url: "https://abcnews.go.com",
+    feedUrl: "https://abcnews.go.com/abcnews/topstories",
+  },
+  {
+    name: "Washington Post",
+    url: "https://www.washingtonpost.com",
+    feedUrl: "https://feeds.washingtonpost.com/rss/world",
+  },
+  {
+    name: "Al Jazeera",
+    url: "https://www.aljazeera.com",
+    feedUrl: "https://www.aljazeera.com/xml/rss/all.xml",
+  },
+  {
+    name: "New York Times",
+    url: "https://www.nytimes.com",
+    feedUrl: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
   }
 ];
 
