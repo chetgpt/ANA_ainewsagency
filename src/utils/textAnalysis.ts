@@ -305,7 +305,7 @@ export function generateNewsScript(newsItem: any): string {
     const sentiment = newsItem.sentiment;
     const keywords = newsItem.keywords;
     const sourceName = newsItem.sourceName;
-    const readingTimeMinutes = Math.round(newsItem.readingTimeSeconds / 60) || 1;
+    const readingTimeMinutes = Math.round((newsItem.readingTimeSeconds || 0) / 60) || 1;
     
     // Create intro
     let intro = `Today we're discussing "${title}" with a ${sentiment} outlook. `;
