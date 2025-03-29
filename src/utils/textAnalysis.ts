@@ -303,28 +303,24 @@ export function generateNewsScript(newsItem: any): string {
     const readingTime = Math.round(newsItem.readingTimeSeconds / 60);
     
     // Create intro based on sentiment
-    let intro = `Today we're discussing a group of ${items.length} related stories with a ${sentiment} outlook. `;
+    let intro = `A group of ${items.length} related stories with a ${sentiment} outlook. `;
     
     if (keywords && keywords.length) {
       intro += `The key themes include ${keywords.join(', ')}. `;
     }
     
     // Create body from each news item
-    let body = `Let's summarize these connected stories:\n\n`;
+    let body = `Summary of connected stories:\n\n`;
     
     items.forEach((item: any, index: number) => {
       body += `Story ${index + 1}: "${item.title}". `;
       if (item.sourceName) {
-        body += `Reported by ${item.sourceName}. `;
+        body += `From ${item.sourceName}. `;
       }
       body += `\n`;
     });
     
-    // Create conclusion
-    let conclusion = `\nThese combined stories will take approximately ${readingTime} minutes to read in full. `;
-    conclusion += `The overall sentiment across these stories is ${sentiment}. `;
-    
-    return `${intro}\n\n${body}\n${conclusion}`;
+    return `${intro}\n\n${body}`;
   } 
   // Handle single news item
   else {
@@ -332,62 +328,31 @@ export function generateNewsScript(newsItem: any): string {
     const description = newsItem.description;
     const fullContent = newsItem.fullContent || ""; // Use fullContent when available
     const sentiment = newsItem.sentiment;
-    const keywords = newsItem.keywords;
+    const keywords = newsItem.keywords || [];
     const sourceName = newsItem.sourceName;
     
-    // Use full content for reading time if available, otherwise use description
-    const contentForReadingTime = fullContent || description;
-    const readingTimeMinutes = Math.round((newsItem.readingTimeSeconds || calculateReadingTime(contentForReadingTime)) / 60) || 1;
-    
-    // Enhanced script for single news article
-    // Create a more professional intro
-    let intro = `ANCHOR: Good day, viewers. Our top story today focuses on ${title}.\n\n`;
-    
-    if (sourceName) {
-      intro += `This breaking news comes to us from our partners at ${sourceName}.\n`;
-    }
-    
-    // Add sentiment-based commentary
-    let sentimentIntro = "";
-    if (sentiment === "positive") {
-      sentimentIntro = "This development brings encouraging news as ";
-    } else if (sentiment === "negative") {
-      sentimentIntro = "In a concerning turn of events, ";
-    } else {
-      sentimentIntro = "In this balanced report, ";
-    }
-    
-    // Create a more detailed body with segments
-    // Use full content if available, otherwise use description
+    // Use full content for script creation if available, otherwise use description
     const contentForBody = fullContent && fullContent.length > description.length 
-      ? fullContent.substring(0, 300) + "..." // Use truncated full content if available
+      ? fullContent.substring(0, 400) // Use truncated full content if available
       : description;
       
-    let body = `REPORTER: ${sentimentIntro}${contentForBody}\n\n`;
+    let script = `${title}\n\n`;
     
-    // Add analysis section with key points
+    if (sourceName) {
+      script += `Source: ${sourceName}\n\n`;
+    }
+    
+    // Add the main content
+    script += `${contentForBody}\n\n`;
+    
+    // Add keywords if available
     if (keywords && keywords.length) {
-      body += "ANALYSIS DESK: Breaking down this story, our analysts highlight these key elements:\n";
-      keywords.forEach((keyword: string, index: number) => {
-        body += `${index + 1}. ${keyword.charAt(0).toUpperCase() + keyword.slice(1)}: This aspect represents a significant element of the developing situation.\n`;
-      });
-      body += "\n";
+      script += `Key topics: ${keywords.join(', ')}\n\n`;
     }
     
-    // Add expert commentary based on sentiment
-    if (sentiment === "positive") {
-      body += "EXPERT COMMENTARY: Industry experts view these developments as potentially beneficial, noting increased opportunities and positive outcomes could follow.\n\n";
-    } else if (sentiment === "negative") {
-      body += "EXPERT COMMENTARY: Specialists express concern regarding these developments, suggesting careful monitoring of the situation as it unfolds.\n\n";
-    } else {
-      body += "EXPERT COMMENTARY: Analysts maintain a neutral stance on these developments, acknowledging both potential benefits and challenges ahead.\n\n";
-    }
+    // Add sentiment information
+    script += `Sentiment: ${sentiment.charAt(0).toUpperCase() + sentiment.slice(1)}`;
     
-    // Create conclusion with call to action
-    let conclusion = `ANCHOR: We'll continue to follow this story as it develops. The full report is available on our website and will take approximately ${readingTimeMinutes} minute${readingTimeMinutes !== 1 ? 's' : ''} to read.\n\n`;
-    conclusion += `For more in-depth coverage on this and related stories, stay tuned to our broadcast or visit our digital platforms.\n\n`;
-    conclusion += "Back to you in the studio.";
-    
-    return `${intro}${body}${conclusion}`;
+    return script;
   }
 }

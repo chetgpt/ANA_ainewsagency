@@ -18,7 +18,6 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     type: string,
     summary?: {
       description: string;
-      fullContent?: string;
       sentiment: "positive" | "negative" | "neutral";
       keywords: string[];
       readingTimeSeconds: number;
@@ -26,8 +25,6 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
       sourceName: string;
     }
   } | null>(null);
-  const [rawData, setRawData] = useState<string | null>(null);
-  const [fullArticle, setFullArticle] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -46,7 +43,6 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         
         const data = await response.text();
         console.log("RSS data fetched successfully with length:", data.length);
-        setRawData(data);
         
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(data, "text/xml");
@@ -86,7 +82,6 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         try {
           articleContent = await fetchArticleContent(link);
           console.log("Fetched article content length:", articleContent.length);
-          setFullArticle(articleContent);
         } catch (err) {
           console.error("Error fetching article content:", err);
           articleContent = description; // Fallback to description
@@ -126,7 +121,6 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
           type: 'single',
           summary: {
             description: newsItem.description,
-            fullContent: newsItem.fullContent,
             sentiment: newsItem.sentiment,
             keywords: newsItem.keywords,
             readingTimeSeconds: newsItem.readingTimeSeconds,
@@ -138,8 +132,8 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         setScript(scriptData);
         
         toast({
-          title: "Enhanced Script Generated",
-          description: "A detailed news script has been created from CNN feed with full article content",
+          title: "News Script Generated",
+          description: "A focused news script has been created from the latest CNN feed",
         });
       } catch (error) {
         console.error("Error fetching news:", error);
@@ -166,7 +160,6 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
           type: 'single',
           summary: {
             description: sampleNewsItem.description,
-            fullContent: sampleNewsItem.fullContent,
             sentiment: sampleNewsItem.sentiment,
             keywords: sampleNewsItem.keywords,
             readingTimeSeconds: sampleNewsItem.readingTimeSeconds,
@@ -178,7 +171,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         setScript(scriptData);
         
         toast({
-          title: "Using Enhanced Sample Data",
+          title: "Using Sample Data",
           description: "Couldn't fetch news, using sample data instead",
           variant: "destructive"
         });
@@ -200,7 +193,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     return (
       <div className="flex justify-center items-center py-20">
         <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-        <span className="ml-2 text-gray-600">Generating enhanced news script...</span>
+        <span className="ml-2 text-gray-600">Generating news script...</span>
       </div>
     );
   }
@@ -208,13 +201,13 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">Professional News Script</h2>
+        <h2 className="text-xl font-semibold">News Summary</h2>
       </div>
       
       {!script ? (
         <div className="flex justify-center items-center py-10">
           <Loader2 className="h-6 w-6 text-blue-600 animate-spin mr-2" />
-          <span className="text-gray-600">Generating enhanced news script...</span>
+          <span className="text-gray-600">Generating news script...</span>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 py-4">
@@ -253,16 +246,6 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
                     {formatReadingTime(script.summary.readingTimeSeconds)}
                   </Badge>
                 </div>
-                
-                {fullArticle && (
-                  <div className="mt-4">
-                    <h3 className="text-sm font-semibold mb-2">Full Article Preview</h3>
-                    <div className="bg-gray-50 p-3 rounded-md border text-xs text-gray-700 max-h-40 overflow-auto">
-                      {fullArticle.substring(0, 500)}
-                      {fullArticle.length > 500 ? "..." : ""}
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
           )}
@@ -274,7 +257,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
                 {script.title}
               </CardTitle>
               <div className="text-xs text-gray-500 mt-1">
-                {script.type === 'group' ? 'Multiple Related Articles' : 'Broadcast-Ready Script'}
+                {script.type === 'group' ? 'Multiple Related Articles' : 'News Script'}
               </div>
             </CardHeader>
             <CardContent>
@@ -289,7 +272,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
                       navigator.clipboard.writeText(script.content);
                       toast({
                         title: "Copied to clipboard",
-                        description: "The enhanced script has been copied to your clipboard",
+                        description: "The news script has been copied to your clipboard",
                       });
                     }
                   }}
@@ -300,22 +283,6 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
               </div>
             </CardContent>
           </Card>
-          
-          {rawData && (
-            <Card className="hover:shadow-md transition-shadow duration-200">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Raw RSS Data Preview
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-gray-50 p-4 rounded-md border mb-4 font-mono max-h-60 overflow-auto">
-                  <pre className="whitespace-pre-wrap text-xs">{rawData.substring(0, 2000)}...</pre>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       )}
     </div>
