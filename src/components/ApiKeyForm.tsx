@@ -5,10 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { checkApiAvailability } from "@/utils/llmService";
 
 const ApiKeyForm = () => {
   const [geminiKey, setGeminiKey] = useState("");
   const [perplexityKey, setPerplexityKey] = useState("");
+  const [apiStatus, setApiStatus] = useState({ geminiAvailable: false, perplexityAvailable: false });
   const { toast } = useToast();
 
   // Load saved keys on component mount
@@ -18,6 +20,10 @@ const ApiKeyForm = () => {
     
     setGeminiKey(savedGeminiKey);
     setPerplexityKey(savedPerplexityKey);
+    
+    // Check API availability
+    const status = checkApiAvailability();
+    setApiStatus(status);
   }, []);
 
   const saveApiKeys = () => {
@@ -32,6 +38,13 @@ const ApiKeyForm = () => {
     } else {
       localStorage.removeItem("VITE_LLM_API_KEY");
     }
+    
+    // Update API status
+    const newStatus = {
+      geminiAvailable: !!geminiKey,
+      perplexityAvailable: !!perplexityKey
+    };
+    setApiStatus(newStatus);
     
     toast({
       title: "API Keys Saved",
@@ -53,7 +66,12 @@ const ApiKeyForm = () => {
       <CardContent>
         <div className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="gemini-api-key">Gemini API Key (Recommended)</Label>
+            <Label htmlFor="gemini-api-key">
+              Gemini API Key (Recommended)
+              {apiStatus.geminiAvailable && (
+                <span className="ml-2 text-green-600 text-xs">✓ Configured</span>
+              )}
+            </Label>
             <Input
               id="gemini-api-key"
               type="password"
@@ -67,7 +85,12 @@ const ApiKeyForm = () => {
           </div>
           
           <div className="grid gap-2">
-            <Label htmlFor="perplexity-api-key">Perplexity API Key (Optional)</Label>
+            <Label htmlFor="perplexity-api-key">
+              Perplexity API Key (Optional)
+              {apiStatus.perplexityAvailable && (
+                <span className="ml-2 text-green-600 text-xs">✓ Configured</span>
+              )}
+            </Label>
             <Input
               id="perplexity-api-key"
               type="password"

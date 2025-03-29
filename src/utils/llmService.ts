@@ -28,6 +28,21 @@ function getApiKey(keyName: string): string | undefined {
   return apiKey;
 }
 
+// Check API availability and log results
+export function checkApiAvailability(): { geminiAvailable: boolean, perplexityAvailable: boolean } {
+  const geminiApiKey = getApiKey('VITE_GEMINI_API_KEY');
+  const perplexityApiKey = getApiKey('VITE_LLM_API_KEY');
+  
+  console.log("API availability check:");
+  console.log("- Gemini API:", geminiApiKey ? "Available" : "Not available");
+  console.log("- Perplexity API:", perplexityApiKey ? "Available" : "Not available");
+  
+  return {
+    geminiAvailable: !!geminiApiKey,
+    perplexityAvailable: !!perplexityApiKey
+  };
+}
+
 // Function to analyze text using an LLM API
 export async function analyzeLLM(title: string, content: string): Promise<LLMResponse> {
   try {

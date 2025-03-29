@@ -12,6 +12,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { checkApiAvailability } from "@/utils/llmService";
 
 interface CategorizedNewsListProps {
   selectedCategory: string;
@@ -20,6 +21,10 @@ interface CategorizedNewsListProps {
 const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => {
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [apiStatus, setApiStatus] = useState<{
+    geminiAvailable: boolean;
+    perplexityAvailable: boolean;
+  }>({ geminiAvailable: false, perplexityAvailable: false });
   const [script, setScript] = useState<{
     title: string, 
     content: string, 
@@ -34,6 +39,13 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     }
   } | null>(null);
   const { toast } = useToast();
+
+  // Check API availability on mount
+  useEffect(() => {
+    const status = checkApiAvailability();
+    setApiStatus(status);
+    console.log("API Status:", status);
+  }, []);
 
   useEffect(() => {
     const fetchSingleNewsItem = async () => {
@@ -210,14 +222,23 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">News Summary</h2>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => setShowSettings(!showSettings)}
-        >
-          <Settings className="h-4 w-4 mr-2" />
-          API Settings
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="text-sm mr-2">
+            API: {apiStatus.geminiAvailable ? 
+              <span className="text-green-600">Gemini ✓</span> : 
+              apiStatus.perplexityAvailable ? 
+                <span className="text-blue-600">Perplexity ✓</span> : 
+                <span className="text-red-600">None ✗</span>}
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowSettings(!showSettings)}
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            API Settings
+          </Button>
+        </div>
       </div>
       
       <Collapsible open={showSettings} onOpenChange={setShowSettings}>
