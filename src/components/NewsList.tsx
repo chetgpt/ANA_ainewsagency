@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import NewsItem, { NewsItemProps } from "./NewsItem";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
+import { analyzeSentiment, extractKeywords, calculateReadingTime } from "@/utils/textAnalysis";
 
 interface NewsListProps {
   feedUrl: string;
@@ -52,12 +53,25 @@ const NewsList = ({ feedUrl }: NewsListProps) => {
             }
           }
           
+          const title = item.querySelector("title")?.textContent || "No title";
+          const description = item.querySelector("description")?.textContent || "";
+          
+          // Perform basic analysis on the title and description
+          const combinedText = title + " " + description;
+          const sentiment = analyzeSentiment(combinedText);
+          const keywords = extractKeywords(combinedText, 3);
+          const readingTimeSeconds = calculateReadingTime(description);
+          
           parsedItems.push({
-            title: item.querySelector("title")?.textContent || "No title",
-            description: item.querySelector("description")?.textContent || "",
+            title,
+            description,
             pubDate: item.querySelector("pubDate")?.textContent || new Date().toUTCString(),
             link: item.querySelector("link")?.textContent || "#",
-            imageUrl: imageUrl || undefined
+            imageUrl: imageUrl || undefined,
+            sourceName: "", // No source name in this component
+            sentiment,
+            keywords,
+            readingTimeSeconds
           });
         });
         
