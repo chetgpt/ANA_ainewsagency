@@ -2,9 +2,6 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Speaker, Square } from "lucide-react";
-import { useState } from "react";
 
 export interface NewsItemProps {
   title: string;
@@ -23,38 +20,19 @@ const NewsItem = ({
   description, 
   pubDate, 
   link, 
-  keywords
+  sourceName,
+  sentiment,
+  keywords,
+  readingTimeSeconds
 }: NewsItemProps) => {
   const formattedDate = formatDistanceToNow(new Date(pubDate), { addSuffix: true });
-  const [isSpeaking, setIsSpeaking] = useState(false);
   
-  const handleTTS = () => {
-    if (isSpeaking) {
-      // Stop speech if currently speaking
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-      return;
-    }
-
-    // Start speech synthesis
-    setIsSpeaking(true);
-    
-    const utterance = new SpeechSynthesisUtterance(description);
-    utterance.rate = 1.0; // Normal speaking rate
-    utterance.pitch = 1.0; // Normal pitch
-    
-    // Handle when speech has completed
-    utterance.onend = () => {
-      setIsSpeaking(false);
-    };
-    
-    // Handle any errors
-    utterance.onerror = () => {
-      setIsSpeaking(false);
-    };
-    
-    window.speechSynthesis.speak(utterance);
-  };
+  // Define sentiment color
+  const sentimentColor = {
+    positive: "bg-green-100 text-green-800",
+    negative: "bg-red-100 text-red-800",
+    neutral: "bg-blue-100 text-blue-800"
+  }[sentiment];
   
   return (
     <Card className="h-full hover:shadow-md transition-shadow duration-200">
@@ -66,32 +44,35 @@ const NewsItem = ({
       >
         <CardHeader className="pb-2">
           <CardTitle className="text-lg font-bold line-clamp-2">{title}</CardTitle>
+          {sourceName && (
+            <div className="text-xs text-blue-600 font-medium mt-1">
+              {sourceName}
+            </div>
+          )}
         </CardHeader>
         <CardContent className="flex-grow pb-2">
           <CardDescription className="line-clamp-3">{description}</CardDescription>
           
           <div className="mt-3 flex flex-wrap gap-1">
+            <Badge variant="outline" className={sentimentColor}>
+              {sentiment.charAt(0).toUpperCase() + sentiment.slice(1)} (Full)
+            </Badge>
+            
             {keywords.map((keyword, index) => (
               <Badge key={index} variant="outline" className="bg-gray-100">
                 {keyword}
               </Badge>
             ))}
+            
+            <Badge variant="outline" className="bg-gray-100 text-gray-800">
+              {readingTimeSeconds < 60 
+                ? `${readingTimeSeconds}s read` 
+                : `${Math.floor(readingTimeSeconds / 60)}m read`} (Full)
+            </Badge>
           </div>
         </CardContent>
-        <CardFooter className="pt-0 text-xs flex justify-between items-center">
-          <span className="text-gray-500">{formattedDate}</span>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={(e) => {
-              e.preventDefault(); // Prevent the link from being followed
-              handleTTS();
-            }}
-            className="ml-auto flex items-center gap-1"
-          >
-            {isSpeaking ? <Square className="h-4 w-4" /> : <Speaker className="h-4 w-4" />}
-            {isSpeaking ? "Stop" : "TL;DR"}
-          </Button>
+        <CardFooter className="pt-0 text-xs text-gray-500">
+          {formattedDate}
         </CardFooter>
       </a>
     </Card>
