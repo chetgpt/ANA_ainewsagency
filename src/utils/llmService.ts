@@ -1,3 +1,4 @@
+
 /**
  * This file contains utilities for interacting with LLM APIs
  */
@@ -76,7 +77,8 @@ export async function analyzeLLM(title: string, content: string): Promise<LLMRes
 // Function to analyze content with Gemini
 async function analyzeWithGemini(title: string, content: string, apiKey: string): Promise<LLMResponse> {
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+    // Updated Gemini API endpoint to use the latest version
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -109,7 +111,9 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
+      const errorData = await response.json();
+      console.error("Gemini API error details:", errorData);
+      throw new Error(`Gemini API error: ${response.status}. Message: ${errorData?.error?.message || 'Unknown error'}`);
     }
 
     const data = await response.json();
@@ -118,7 +122,11 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
     // Parse the response as JSON
     try {
       // Extract the content from the response
-      const content = data.candidates[0].content.parts[0].text;
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!content) {
+        throw new Error("Unexpected response format from Gemini API");
+      }
       
       // Parse the JSON from the content
       const parsedResponse = JSON.parse(content);
@@ -304,7 +312,8 @@ export async function generateScriptWithLLM(title: string, content: string): Pro
 // Function to generate script with Gemini
 async function generateScriptWithGemini(title: string, content: string, apiKey: string): Promise<string> {
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+    // Updated Gemini API endpoint to use the latest version
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -333,11 +342,17 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
+      const errorData = await response.json();
+      console.error("Gemini API error details:", errorData);
+      throw new Error(`Gemini API error: ${response.status}. Message: ${errorData?.error?.message || 'Unknown error'}`);
     }
 
     const data = await response.json();
-    const scriptContent = data.candidates[0].content.parts[0].text;
+    const scriptContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!scriptContent) {
+      throw new Error("Unexpected response format from Gemini API");
+    }
     
     return `${title}\n\n${scriptContent}`;
   } catch (error) {
