@@ -14,7 +14,6 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   const [newsItems, setNewsItems] = useState<(NewsItemProps & { category: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [summarizedItems, setSummarizedItems] = useState<(NewsItemProps & { category: string })[]>([]);
 
   useEffect(() => {
     const fetchAllRssFeeds = async () => {
@@ -92,24 +91,8 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         
         // Sort by publication date (newest first)
         allItems.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
-
-        // Create summarized versions of each item
-        const summaries = allItems.map(item => {
-          // Create a shorter version of the description (first ~100 characters)
-          const cleanDescription = item.description.replace(/<[^>]*>?/gm, '');
-          const summarizedDescription = cleanDescription.length > 100 
-            ? cleanDescription.substring(0, 100) + "..." 
-            : cleanDescription;
-          
-          return {
-            ...item,
-            description: summarizedDescription,
-            category: "summarized"
-          };
-        });
         
         setNewsItems(allItems);
-        setSummarizedItems(summaries);
         setLoading(false);
         setError("");
       } catch (err) {
@@ -124,7 +107,18 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
 
   const getDisplayItems = () => {
     if (selectedCategory === "summarized") {
-      return summarizedItems;
+      // For summarized view, create truncated versions of all news items
+      return newsItems.map(item => {
+        const cleanDescription = item.description.replace(/<[^>]*>?/gm, '');
+        const summarizedDescription = cleanDescription.length > 100 
+          ? cleanDescription.substring(0, 100) + "..." 
+          : cleanDescription;
+        
+        return {
+          ...item,
+          description: summarizedDescription
+        };
+      });
     } else if (selectedCategory === "all") {
       return newsItems;
     } else {
