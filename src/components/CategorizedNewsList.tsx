@@ -25,6 +25,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
       sourceName: string;
     }
   } | null>(null);
+  const [rawData, setRawData] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -42,10 +43,18 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         }
         
         const data = await response.text();
-        console.log("RSS data fetched:", data.substring(0, 200) + "..."); // Log a preview
+        console.log("RSS data fetched successfully with length:", data.length);
+        setRawData(data);
         
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(data, "text/xml");
+        
+        // Log the entire parsed XML structure for debugging
+        console.log("Parsed XML document:", xmlDoc);
+        
+        // Get all items from the feed for debugging
+        const allItems = xmlDoc.querySelectorAll("item");
+        console.log(`Found ${allItems.length} items in the RSS feed`);
         
         // Get the first item from the feed
         const firstItem = xmlDoc.querySelector("item");
@@ -54,7 +63,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
           throw new Error("No items found in RSS feed");
         }
         
-        console.log("First item found in RSS feed");
+        console.log("First item found in RSS feed:", firstItem);
         
         // Extract the item data
         const title = firstItem.querySelector("title")?.textContent || "No title";
@@ -62,7 +71,12 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         const pubDate = firstItem.querySelector("pubDate")?.textContent || new Date().toUTCString();
         const link = firstItem.querySelector("link")?.textContent || "#";
         
-        console.log("Extracted data:", { title, description: description.substring(0, 50) + "..." });
+        console.log("Extracted news item data:", { 
+          title, 
+          description: description.substring(0, 100) + "...", 
+          pubDate, 
+          link 
+        });
         
         // Perform simple analysis
         const combinedText = title + " " + description;
@@ -86,7 +100,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         
         // Generate a script for the news item
         const newsScript = generateNewsScript(newsItem);
-        console.log("Generated script:", newsScript.substring(0, 100) + "...");
+        console.log("Generated script with length:", newsScript.length);
         
         const scriptData = {
           title: newsItem.title,
@@ -124,6 +138,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         };
         
         const newsScript = generateNewsScript(sampleNewsItem);
+        console.log("Generated fallback script with sample data");
         
         const scriptData = {
           title: sampleNewsItem.title,
@@ -254,6 +269,22 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
               </div>
             </CardContent>
           </Card>
+          
+          {rawData && (
+            <Card className="hover:shadow-md transition-shadow duration-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Raw RSS Data Preview
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-gray-50 p-4 rounded-md border mb-4 font-mono max-h-60 overflow-auto">
+                  <pre className="whitespace-pre-wrap text-xs">{rawData.substring(0, 2000)}...</pre>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
     </div>
