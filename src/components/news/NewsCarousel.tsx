@@ -31,8 +31,9 @@ interface NewsCarouselProps {
 
 const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [emblaRef, emblaApi] = useEmblaCarousel();
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false });
   const [isLoading, setIsLoading] = useState(false);
+  const previousScriptsLength = useRef(scripts.length);
   
   // Function to handle when the user reaches the end of available content
   const handleReachEnd = async (index: number) => {
@@ -60,6 +61,19 @@ const NewsCarousel = ({ scripts, onLoadMore }: NewsCarouselProps) => {
       emblaApi.off("select", onSelect);
     };
   }, [emblaApi, scripts.length, onLoadMore]);
+
+  // Handle updates to scripts array
+  useEffect(() => {
+    // Check if new scripts were added
+    if (scripts.length > previousScriptsLength.current && emblaApi) {
+      // Update the carousel
+      emblaApi.reInit();
+      console.log(`NewsCarousel: Scripts updated from ${previousScriptsLength.current} to ${scripts.length}`);
+    }
+    
+    // Update the ref with current scripts length
+    previousScriptsLength.current = scripts.length;
+  }, [scripts, emblaApi]);
 
   return (
     <div className="relative">

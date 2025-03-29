@@ -1,3 +1,4 @@
+
 import { 
   analyzeSentiment, 
   extractKeywords, 
@@ -16,6 +17,9 @@ let newsQueue: Array<{
 
 // Track the items we've already processed to avoid duplicates
 const processedArticleLinks = new Set<string>();
+
+// Fetch more items from the feed than before
+const INITIAL_FETCH_COUNT = 5;
 
 export async function fetchNewsArticle() {
   // If we have items in the queue, return the next one
@@ -126,6 +130,38 @@ export async function processNewsArticle(article: {
       sourceName: newsItem.sourceName
     }
   };
+}
+
+// Function to preload multiple news items
+export async function preloadMultipleNews(count: number = 3) {
+  const results = [];
+  
+  try {
+    // Fetch multiple news articles in parallel
+    for (let i = 0; i < count; i++) {
+      // Stop if we run out of news in the queue
+      if (newsQueue.length === 0) {
+        // Refill queue if empty
+        try {
+          await fetchNewsArticle();
+        } catch (error) {
+          console.error("Error refilling news queue:", error);
+          break;
+        }
+      }
+      
+      // Process the next item in the queue
+      if (newsQueue.length > 0) {
+        const article = newsQueue.shift()!;
+        results.push(article);
+      }
+    }
+    
+    return results;
+  } catch (error) {
+    console.error("Error preloading multiple news:", error);
+    return [];
+  }
 }
 
 export function getSampleNewsData() {
