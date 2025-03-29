@@ -29,7 +29,7 @@ const Index = () => {
       </main>
       <footer className="bg-gray-100 border-t border-gray-200 py-4">
         <div className="container mx-auto px-4 text-center text-sm text-gray-600">
-          &copy; {new Date().getFullYear()} ANA - AI News Agency
+          &copy; {new Date().getFullYear()} SumNews - Your RSS News Reader
         </div>
       </footer>
     </div>

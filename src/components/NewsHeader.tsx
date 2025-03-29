@@ -1,32 +1,41 @@
+
 import { Newspaper, Settings, Trash } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+
 interface NewsHeaderProps {
   onClearCache?: () => void;
 }
-const NewsHeader = ({
-  onClearCache
-}: NewsHeaderProps) => {
-  const {
-    toast
-  } = useToast();
+
+const NewsHeader = ({ onClearCache }: NewsHeaderProps) => {
+  const { toast } = useToast();
+
   const handleClearCache = () => {
     // Clear all news cache from localStorage
     const cacheKeys = Object.keys(localStorage).filter(key => key.startsWith('news-cache-'));
     cacheKeys.forEach(key => localStorage.removeItem(key));
+    
     if (onClearCache) {
       onClearCache();
     }
+    
     toast({
       title: "Cache cleared",
-      description: "All cached news have been cleared"
+      description: "All cached news have been cleared",
     });
   };
-  return <header className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+
+  return (
+    <header className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
       <div className="container mx-auto px-4 py-4 flex justify-between items-center">
         <div className="flex items-center space-x-2">
           <Newspaper className="h-6 w-6 text-blue-600" />
-          <h1 className="text-xl font-bold text-gray-800">ANA</h1>
+          <h1 className="text-xl font-bold text-gray-800">SumNews</h1>
         </div>
         <div>
           <DropdownMenu>
@@ -44,6 +53,8 @@ const NewsHeader = ({
           </DropdownMenu>
         </div>
       </div>
-    </header>;
+    </header>
+  );
 };
+
 export default NewsHeader;

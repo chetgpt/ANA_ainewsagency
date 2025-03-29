@@ -119,11 +119,6 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
                    - Who gains money or power from this?
                    - What previous patterns does this fit into?
                    - What is NOT being reported?
-                   
-                7. Filter for News Content:
-                   - Determine whether this content is actually news or not
-                   - Skip the analysis if it's not a news article (like a product page, personal blog, etc.)
-                   - News typically reports on recent events, has journalistic structure, and covers topics of public interest
 
                 USE THIS FRAMEWORK FOR YOUR ANALYSIS, BUT DO NOT STRUCTURE YOUR RESPONSE AROUND IT.
 
@@ -253,7 +248,7 @@ async function analyzeWithPerplexity(title: string, content: string, apiKey: str
 
             4. Rippling Through Probability Chains
                - Backward: P(Sub-cause)=P(Main cause)×P(Sub-cause∣Main cause)
-               - Forward: P(Xn+1)=P(Xn)×P(Xn+1∣Xn)
+               - Forward: P(Xn+1)=P(Xn+1∣Xn)
                - Cite: Each step references at least one supporting fact or source.
 
             5. Comprehensive Impact List (All Affected Fields)
@@ -264,11 +259,6 @@ async function analyzeWithPerplexity(title: string, content: string, apiKey: str
                - Who gains money or power from this?
                - What previous patterns does this fit into?
                - What is NOT being reported?
-               
-            7. Filter for News Content:
-               - Determine whether this content is actually news or not
-               - Skip the analysis if it's not a news article (like a product page, personal blog, etc.)
-               - News typically reports on recent events, has journalistic structure, and covers topics of public interest
 
             USE THIS FRAMEWORK FOR YOUR ANALYSIS, BUT DO NOT STRUCTURE YOUR RESPONSE AROUND IT.
 
@@ -286,7 +276,7 @@ async function analyzeWithPerplexity(title: string, content: string, apiKey: str
             Create a conversational summary that's easy to read and understand (400-500 words).
             
             Return a JSON object with the following fields:
-            - summary: A conversational summary (400-500 words)
+            - summary: A conversational summary based on your framework analysis (400-500 words)
             - sentiment: Either "positive", "negative", or "neutral"
             - keywords: An array of 3-5 key terms from the article`
           },
@@ -471,11 +461,6 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
                    - Who gains money or power from this?
                    - What previous patterns does this fit into?
                    - What is NOT being reported?
-                   
-                6. Filter for News Content:
-                   - Determine whether this content is actually news or not
-                   - Skip the analysis if it's not a news article (like a product page, personal blog, etc.)
-                   - News typically reports on recent events, has journalistic structure, and covers topics of public interest
                 
                 USE THIS FRAMEWORK FOR YOUR ANALYSIS, BUT DO NOT STRUCTURE YOUR RESPONSE AROUND IT.
 
@@ -585,11 +570,6 @@ async function generateScriptWithPerplexity(title: string, content: string, apiK
                    - Who gains money or power from this?
                    - What previous patterns does this fit into?
                    - What is NOT being reported?
-                   
-                6. Filter for News Content:
-                   - Determine whether this content is actually news or not
-                   - Skip the analysis if it's not a news article (like a product page, personal blog, etc.)
-                   - News typically reports on recent events, has journalistic structure, and covers topics of public interest
                 
                 USE THIS FRAMEWORK FOR YOUR ANALYSIS, BUT DO NOT STRUCTURE YOUR RESPONSE AROUND IT.
 
