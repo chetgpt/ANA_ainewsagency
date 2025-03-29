@@ -1,8 +1,9 @@
 
 import { useState, useEffect } from "react";
-import { Loader2, FileText, Copy } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, FileText, Copy, Newspaper } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
 import { generateNewsScript, analyzeSentiment, extractKeywords, calculateReadingTime } from "@/utils/textAnalysis";
 
 interface CategorizedNewsListProps {
@@ -11,7 +12,19 @@ interface CategorizedNewsListProps {
 
 const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => {
   const [loading, setLoading] = useState(true);
-  const [script, setScript] = useState<{title: string, content: string, type: string} | null>(null);
+  const [script, setScript] = useState<{
+    title: string, 
+    content: string, 
+    type: string,
+    summary?: {
+      description: string;
+      sentiment: "positive" | "negative" | "neutral";
+      keywords: string[];
+      readingTimeSeconds: number;
+      pubDate: string;
+      sourceName: string;
+    }
+  } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -78,7 +91,15 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         const scriptData = {
           title: newsItem.title,
           content: newsScript,
-          type: 'single'
+          type: 'single',
+          summary: {
+            description: newsItem.description,
+            sentiment: newsItem.sentiment,
+            keywords: newsItem.keywords,
+            readingTimeSeconds: newsItem.readingTimeSeconds,
+            pubDate: newsItem.pubDate,
+            sourceName: newsItem.sourceName
+          }
         };
         
         setScript(scriptData);
@@ -107,7 +128,15 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         const scriptData = {
           title: sampleNewsItem.title,
           content: newsScript,
-          type: 'single'
+          type: 'single',
+          summary: {
+            description: sampleNewsItem.description,
+            sentiment: sampleNewsItem.sentiment,
+            keywords: sampleNewsItem.keywords,
+            readingTimeSeconds: sampleNewsItem.readingTimeSeconds,
+            pubDate: sampleNewsItem.pubDate,
+            sourceName: sampleNewsItem.sourceName
+          }
         };
         
         setScript(scriptData);
@@ -124,6 +153,12 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     
     fetchSingleNewsItem();
   }, [toast]);
+
+  const formatReadingTime = (seconds: number) => {
+    return seconds < 60 
+      ? `${seconds}s read` 
+      : `${Math.floor(seconds / 60)}m read`;
+  };
 
   if (loading) {
     return (
@@ -147,6 +182,45 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 py-4">
+          {script.summary && (
+            <Card className="hover:shadow-md transition-shadow duration-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <Newspaper className="h-5 w-5" />
+                  News Summary
+                </CardTitle>
+                <div className="text-xs text-gray-500 mt-1">
+                  Source: {script.summary.sourceName}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <CardDescription className="text-sm text-gray-700 mb-4">
+                  {script.summary.description}
+                </CardDescription>
+                
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <Badge variant="outline" className={
+                    script.summary.sentiment === "positive" ? "bg-green-100 text-green-800" :
+                    script.summary.sentiment === "negative" ? "bg-red-100 text-red-800" :
+                    "bg-blue-100 text-blue-800"
+                  }>
+                    {script.summary.sentiment.charAt(0).toUpperCase() + script.summary.sentiment.slice(1)}
+                  </Badge>
+                  
+                  {script.summary.keywords.map((keyword, index) => (
+                    <Badge key={index} variant="outline" className="bg-gray-100">
+                      {keyword}
+                    </Badge>
+                  ))}
+                  
+                  <Badge variant="outline" className="bg-gray-100 text-gray-800">
+                    {formatReadingTime(script.summary.readingTimeSeconds)}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
           <Card className="h-full hover:shadow-md transition-shadow duration-200">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
