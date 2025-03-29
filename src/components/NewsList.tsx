@@ -305,9 +305,12 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
   const fetchRssFeed = async (forceRefresh = false) => {
     // Try to load from cache first, unless force refresh is requested
     const cachedNews = !forceRefresh ? loadCachedNews() : null;
+    console.log("Cache status:", cachedNews ? "Using cache" : "No cache or force refresh");
+    
     if (cachedNews) {
       // Filter cached news to only include items from the last day
       const filteredItems = cachedNews.items.filter((item: CachedNewsItem) => isWithinLastDay(item.pubDate));
+      console.log(`Filtered cached items: ${filteredItems.length} items from the last 24 hours`);
       setNewsItems(filteredItems);
       
       // Check if there are any items that haven't been summarized yet from cache
@@ -324,20 +327,40 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
     
     try {
       setLoading(true);
+      console.log(`Fetching RSS from: ${activeFeedUrl}`);
       
       // Use a CORS proxy to fetch the RSS feed with cache busting
       const corsProxy = "https://api.allorigins.win/raw?url=";
-      const response = await fetch(`${corsProxy}${encodeURIComponent(activeFeedUrl)}?_=${Date.now()}`);
+      const fullUrl = `${corsProxy}${encodeURIComponent(activeFeedUrl)}?_=${Date.now()}`;
+      console.log(`Full request URL: ${fullUrl}`);
+      
+      const response = await fetch(fullUrl);
+      console.log(`RSS Feed Response status: ${response.status}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch RSS feed: ${response.status}`);
       }
       
       const data = await response.text();
+      console.log(`RSS data received, length: ${data.length} characters`);
+      
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(data, "text/xml");
       
+      // Check if there was an XML parsing error
+      const parserError = xmlDoc.querySelector("parsererror");
+      if (parserError) {
+        console.error("XML parsing error:", parserError.textContent);
+        console.log("First 200 chars of received data:", data.substring(0, 200));
+        throw new Error("Failed to parse RSS feed: Invalid XML format");
+      }
+      
+      const channelTitle = xmlDoc.querySelector("channel > title")?.textContent;
+      console.log(`RSS Channel title: ${channelTitle || "Not found"}`);
+      
       const items = xmlDoc.querySelectorAll("item");
+      console.log(`Found ${items.length} items in the RSS feed`);
+      
       const newParsedItems: CachedNewsItem[] = [];
       const itemsToSummarize: string[] = []; // Store IDs of new items needing summarization
       
@@ -345,7 +368,8 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       const currentItemsState = newsItems.length > 0 ? newsItems : (cachedNews?.items || []);
       const currentItemsMap = new Map(currentItemsState.map(item => [item.id, item]));
       
-      items.forEach((item) => {
+      // Process each RSS item
+      items.forEach((item, index) => {
         // Extract data from RSS item
         let imageUrl = "";
         const mediaContent = item.querySelector("media\\:content, content");
@@ -369,8 +393,11 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
         const link = item.querySelector("link")?.textContent || "#";
         const description = item.querySelector("description")?.textContent || "";
         
+        console.log(`Item ${index + 1}: "${title}" (${pubDateStr})`);
+        
         // Skip items that are older than one day
         if (!isWithinLastDay(pubDateStr)) {
+          console.log(`Skipping item "${title}" - older than 24 hours`);
           return;
         }
         
@@ -382,6 +409,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
         
         if (existingItem && !forceRefresh) {
           // We already have this item, reuse it
+          console.log(`Reusing existing item: "${title}"`);
           newParsedItems.push(existingItem);
         } else {
           // Check if it's an update to an existing item or a completely new item
@@ -409,6 +437,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
             cached: false
           };
           
+          console.log(`Added ${isUpdate ? "updated" : "new"} item: "${title}"`);
           newParsedItems.push(newItem);
           
           // If it's new or wasn't summarized before, add to the queue
@@ -417,6 +446,8 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
           }
         }
       });
+      
+      console.log(`Total processed items: ${newParsedItems.length} for display`);
       
       // Update state with new items (UI component will handle sorting)
       setNewsItems(newParsedItems);
@@ -442,7 +473,7 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
       }
     } catch (err) {
       console.error("Error fetching RSS feed:", err);
-      setError("Failed to load news. Please try again later.");
+      setError(`Failed to load news: ${err instanceof Error ? err.message : "Unknown error"}`);
       setLoading(false);
     }
   };
@@ -527,6 +558,15 @@ const NewsList = ({ feedUrl, onStatusUpdate }: NewsListProps) => {
           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
           <span>Generating summaries for {summarizingCount} articles in the background...</span>
         </div>
+      )}
+      
+      {newsItems.length === 0 && !loading && !error && (
+        <Alert className="my-4">
+          <AlertDescription>
+            No news articles found for the last 24 hours. 
+            Try selecting a different source or clearing the cache.
+          </AlertDescription>
+        </Alert>
       )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-6">
