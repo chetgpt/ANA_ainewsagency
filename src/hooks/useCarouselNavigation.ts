@@ -11,9 +11,8 @@ export function useCarouselNavigation({ scripts, onLoadMore }: UseCarouselNaviga
   const [currentIndex, setCurrentIndex] = useState(0);
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: false,
-    dragFree: false,
+    dragFree: true, // Enable free dragging
     containScroll: "keepSnaps",
-    // Remove the invalid 'draggable' property
     align: "center"
   });
   const [isLoading, setIsLoading] = useState(false);
