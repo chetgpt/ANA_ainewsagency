@@ -1,4 +1,3 @@
-
 /**
  * This file contains utilities for interacting with LLM APIs
  */
@@ -13,12 +12,25 @@ interface LLMResponse {
 // LLM Provider types
 type LLMProvider = "perplexity" | "gemini";
 
+// Function to get API key from environment or localStorage
+function getApiKey(keyName: string): string | undefined {
+  // Try to get from environment first
+  let apiKey = import.meta.env[keyName];
+  
+  // If not found in environment, try localStorage
+  if (!apiKey) {
+    apiKey = localStorage.getItem(keyName) || undefined;
+  }
+  
+  return apiKey;
+}
+
 // Function to analyze text using an LLM API
 export async function analyzeLLM(title: string, content: string): Promise<LLMResponse> {
   try {
-    // Get API keys from environment variables
-    const perplexityApiKey = import.meta.env.VITE_LLM_API_KEY;
-    const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    // Get API keys from environment variables or localStorage
+    const perplexityApiKey = getApiKey('VITE_LLM_API_KEY');
+    const geminiApiKey = getApiKey('VITE_GEMINI_API_KEY');
     
     // Determine which provider to use (prefer Gemini if available)
     const provider: LLMProvider = geminiApiKey ? "gemini" : "perplexity";
@@ -30,7 +42,7 @@ export async function analyzeLLM(title: string, content: string): Promise<LLMRes
       return fallbackAnalysis(title, content);
     }
     
-    console.log(`Using ${provider} for news analysis`);
+    console.log(`Using ${provider} for news analysis with API key length: ${apiKey.length}`);
     
     if (provider === "gemini") {
       return analyzeWithGemini(title, content, apiKey);
@@ -170,25 +182,62 @@ async function analyzeWithPerplexity(title: string, content: string, apiKey: str
 
 // Fallback function to use when the LLM API is unavailable
 function fallbackAnalysis(title: string, content: string): LLMResponse {
-  // Import local analysis functions
-  const { analyzeSentiment, extractKeywords } = require('./textAnalysis');
-  
   // Create a basic summary from first 2 sentences or 150 chars
   const sentences = content.match(/[^.!?]+[.!?]+/g) || [];
   const summary = sentences.slice(0, 2).join(' ').trim() || content.substring(0, 150) + "...";
   
+  // Simple sentiment analysis
+  const positiveWords = ["good", "great", "excellent", "amazing", "wonderful", "fantastic", "positive", "success"];
+  const negativeWords = ["bad", "terrible", "horrible", "awful", "poor", "negative", "fail", "failure"];
+  
+  const lcContent = (title + " " + content).toLowerCase();
+  let positiveCount = 0;
+  let negativeCount = 0;
+  
+  positiveWords.forEach(word => {
+    const regex = new RegExp(`\\b${word}\\b`, 'gi');
+    const matches = lcContent.match(regex);
+    if (matches) positiveCount += matches.length;
+  });
+  
+  negativeWords.forEach(word => {
+    const regex = new RegExp(`\\b${word}\\b`, 'gi');
+    const matches = lcContent.match(regex);
+    if (matches) negativeCount += matches.length;
+  });
+  
+  let sentiment: "positive" | "negative" | "neutral" = "neutral";
+  if (positiveCount > negativeCount) sentiment = "positive";
+  else if (negativeCount > positiveCount) sentiment = "negative";
+  
+  // Extract keywords (basic implementation)
+  const words = lcContent.replace(/[^\w\s]/g, '').split(/\s+/);
+  const wordFreq: Record<string, number> = {};
+  const stopWords = ["a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "with", "by", "about", "as"];
+  
+  words.forEach(word => {
+    if (word.length > 3 && !stopWords.includes(word)) {
+      wordFreq[word] = (wordFreq[word] || 0) + 1;
+    }
+  });
+  
+  const keywords = Object.entries(wordFreq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(entry => entry[0]);
+  
   return {
     summary,
-    sentiment: analyzeSentiment(title + " " + content),
-    keywords: extractKeywords(title + " " + content, 5)
+    sentiment,
+    keywords
   };
 }
 
 // Generate a news script using LLM
 export async function generateScriptWithLLM(title: string, content: string): Promise<string> {
   try {
-    const perplexityApiKey = import.meta.env.VITE_LLM_API_KEY;
-    const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const perplexityApiKey = getApiKey('VITE_LLM_API_KEY');
+    const geminiApiKey = getApiKey('VITE_GEMINI_API_KEY');
     
     // Determine which provider to use (prefer Gemini if available)
     const provider: LLMProvider = geminiApiKey ? "gemini" : "perplexity";
@@ -200,7 +249,7 @@ export async function generateScriptWithLLM(title: string, content: string): Pro
       return `${title}\n\n${analysis.summary}\n\nKey topics: ${analysis.keywords.join(', ')}`;
     }
     
-    console.log(`Using ${provider} for script generation`);
+    console.log(`Using ${provider} for script generation with API key length: ${apiKey.length}`);
     
     if (provider === "gemini") {
       return generateScriptWithGemini(title, content, apiKey);
@@ -209,15 +258,28 @@ export async function generateScriptWithLLM(title: string, content: string): Pro
     }
   } catch (error) {
     console.error("Error generating script with LLM:", error);
-    // Fall back to local text analysis
-    const { generateNewsScript } = require('./textAnalysis');
-    const newsItem = { 
-      title, 
-      fullContent: content,
-      description: content.substring(0, 150),
-      sourceName: "NewsHub" 
-    };
-    return generateNewsScript(newsItem);
+    
+    // Fallback to simple text analysis
+    const sentences = content.match(/[^.!?]+[.!?]+/g) || [];
+    const summary = sentences.slice(0, 3).join(' ').trim() || content.substring(0, 200) + "...";
+    
+    const lcContent = (title + " " + content).toLowerCase();
+    const words = lcContent.replace(/[^\w\s]/g, '').split(/\s+/);
+    const wordFreq: Record<string, number> = {};
+    const stopWords = ["a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "with", "by", "about", "as"];
+    
+    words.forEach(word => {
+      if (word.length > 3 && !stopWords.includes(word)) {
+        wordFreq[word] = (wordFreq[word] || 0) + 1;
+      }
+    });
+    
+    const keywords = Object.entries(wordFreq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(entry => entry[0]);
+    
+    return `${title}\n\n${summary}\n\nKey topics: ${keywords.join(', ')}`;
   }
 }
 
