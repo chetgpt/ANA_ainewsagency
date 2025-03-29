@@ -14,6 +14,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   const [newsItems, setNewsItems] = useState<(NewsItemProps & { category: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [summarizedItems, setSummarizedItems] = useState<(NewsItemProps & { category: string })[]>([]);
 
   useEffect(() => {
     const fetchAllRssFeeds = async () => {
@@ -91,8 +92,24 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
         
         // Sort by publication date (newest first)
         allItems.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+
+        // Create summarized versions of each item
+        const summaries = allItems.map(item => {
+          // Create a shorter version of the description (first ~100 characters)
+          const cleanDescription = item.description.replace(/<[^>]*>?/gm, '');
+          const summarizedDescription = cleanDescription.length > 100 
+            ? cleanDescription.substring(0, 100) + "..." 
+            : cleanDescription;
+          
+          return {
+            ...item,
+            description: summarizedDescription,
+            category: "summarized"
+          };
+        });
         
         setNewsItems(allItems);
+        setSummarizedItems(summaries);
         setLoading(false);
         setError("");
       } catch (err) {
@@ -105,9 +122,17 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     fetchAllRssFeeds();
   }, []);
 
-  const filteredNewsItems = selectedCategory === "all" 
-    ? newsItems 
-    : newsItems.filter(item => item.category === selectedCategory);
+  const getDisplayItems = () => {
+    if (selectedCategory === "summarized") {
+      return summarizedItems;
+    } else if (selectedCategory === "all") {
+      return newsItems;
+    } else {
+      return newsItems.filter(item => item.category === selectedCategory);
+    }
+  };
+
+  const displayItems = getDisplayItems();
 
   if (loading) {
     return (
@@ -126,7 +151,7 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
     );
   }
 
-  if (filteredNewsItems.length === 0) {
+  if (displayItems.length === 0) {
     return (
       <Alert className="my-4">
         <AlertDescription>
@@ -141,10 +166,14 @@ const CategorizedNewsList = ({ selectedCategory }: CategorizedNewsListProps) => 
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">
-        {selectedCategory === "all" ? "All News" : selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}
+        {selectedCategory === "all" 
+          ? "All News" 
+          : selectedCategory === "summarized"
+            ? "Summarized News"
+            : selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-4">
-        {filteredNewsItems.map((item, index) => (
+        {displayItems.map((item, index) => (
           <NewsItem key={index} {...item} sourceName={item.sourceName} />
         ))}
       </div>
