@@ -286,7 +286,7 @@ async function analyzeWithPerplexity(title: string, content: string, apiKey: str
             Create a conversational summary that's easy to read and understand (400-500 words).
             
             Return a JSON object with the following fields:
-            - summary: A conversational summary based on your framework analysis (400-500 words)
+            - summary: A conversational summary (400-500 words)
             - sentiment: Either "positive", "negative", or "neutral"
             - keywords: An array of 3-5 key terms from the article`
           },
