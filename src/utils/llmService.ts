@@ -18,6 +18,20 @@ const GEMINI_RATE_LIMIT = {
   storageKey: 'gemini-api-requests'
 };
 
+// Current custom prompt storage
+let currentCustomPrompt: string | null = null;
+
+// Function to set custom prompt at runtime
+export function setCustomPrompt(prompt: string | null) {
+  currentCustomPrompt = prompt;
+  console.log("Custom prompt set:", prompt ? `${prompt.substring(0, 50)}...` : "null");
+}
+
+// Function to get the current prompt (custom or default)
+export function getCurrentPrompt(): string | null {
+  return currentCustomPrompt;
+}
+
 // Function to check if we're exceeding the rate limit
 async function checkRateLimit(): Promise<number> {
   try {
@@ -140,6 +154,54 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
     // Record this request for rate limiting
     recordApiRequest();
     
+    // Get the custom prompt if available, otherwise use the default framework
+    const customPrompt = currentCustomPrompt || `You are a news analysis assistant with web search capabilities.
+     Analyze the following news article using this comprehensive framework:
+
+     1. Present Event (Anchor)
+        - Define: Who, what, when, and where—citing at least one source or piece of data.
+        - Goal: Establish a clear "anchor" event that everything else revolves around.
+
+     2. Backward Analysis (Causes) with Multiple Layers
+        - Layered Causes: For each immediate cause, list sub-causes (up to 2–3 layers).
+        - Assign Probabilities: E.g., "Cause A: 70%," "Sub-cause A1: 50%."
+        - Fact Basis: Cite relevant info (historical data, reports) for each layer.
+        - Example: "Major Debt (70%) → CFO Resignation (50%)."
+
+     3. Forward Analysis (Effects) with Multiple Layers
+        - Layered Outcomes: For each first-level effect, list sub-effects (again, 2–3 layers).
+        - Assign Probabilities: E.g., "Effect A: 80%," "Sub-effect A1: 40%."
+        - Fact Basis: Reference known patterns or real-time data.
+        - Example: "Layoffs (80%) → Union Strikes (40%)."
+
+     4. Rippling Through Probability Chains
+        - Backward: P(Sub-cause)=P(Main cause)×P(Sub-cause∣Main cause)
+        - Forward: P(Xn+1)=P(Xn)×P(Xn+1∣Xn)
+        - Cite: Each step references at least one supporting fact or source.
+
+     5. Comprehensive Impact List (All Affected Fields)
+        - Collect All Impacts: Generate one consolidated list of every domain, industry, or field affected.
+        - Result: A "Global Impact" list that justifies how these fields connect to the anchor event.
+
+     6. Additional Questions:
+        - Who gains money or power from this?
+        - What previous patterns does this fit into?
+        - What is NOT being reported?
+
+     USE THIS FRAMEWORK FOR YOUR ANALYSIS, BUT DO NOT STRUCTURE YOUR RESPONSE AROUND IT.
+
+     Instead, write a CASUAL, CONVERSATIONAL summary that:
+     - Uses everyday language a non-expert would understand
+     - Avoids jargon, technical terms, and complex sentences
+     - Explains concepts simply as if talking to a friend
+     - Never mentions the framework sections explicitly (don't say "Present Event" or "Backward Analysis")
+     - Flows naturally between ideas without formal section headers
+     - Includes the key insights from your analysis in an approachable way
+     - Mentions major causes and effects with approximate likelihoods in plain language
+     - Points out who benefits and what patterns this fits`;
+    
+    console.log("Using prompt for Gemini:", customPrompt ? "Custom" : "Default");
+    
     // Updated to use gemini-2.0-flash model with structured framework for news analysis but casual output
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
@@ -151,53 +213,7 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
           {
             parts: [
               {
-                text: `You are a news analysis assistant with web search capabilities. 
-                Analyze the following news article using this comprehensive framework:
-
-                1. Present Event (Anchor)
-                   - Define: Who, what, when, and where—citing at least one source or piece of data.
-                   - Goal: Establish a clear "anchor" event that everything else revolves around.
-
-                2. Backward Analysis (Causes) with Multiple Layers
-                   - Layered Causes: For each immediate cause, list sub-causes (up to 2–3 layers).
-                   - Assign Probabilities: E.g., "Cause A: 70%," "Sub-cause A1: 50%."
-                   - Fact Basis: Cite relevant info (historical data, reports) for each layer.
-                   - Example: "Major Debt (70%) → CFO Resignation (50%)."
-
-                3. Forward Analysis (Effects) with Multiple Layers
-                   - Layered Outcomes: For each first-level effect, list sub-effects (again, 2–3 layers).
-                   - Assign Probabilities: E.g., "Effect A: 80%," "Sub-effect A1: 40%."
-                   - Fact Basis: Reference known patterns or real-time data.
-                   - Example: "Layoffs (80%) → Union Strikes (40%)."
-
-                4. Rippling Through Probability Chains
-                   - Backward: P(Sub-cause)=P(Main cause)×P(Sub-cause∣Main cause)
-                   - Forward: P(Xn+1)=P(Xn)×P(Xn+1∣Xn)
-                   - Cite: Each step references at least one supporting fact or source.
-
-                5. Comprehensive Impact List (All Affected Fields)
-                   - Collect All Impacts: Generate one consolidated list of every domain, industry, or field affected.
-                   - Result: A "Global Impact" list that justifies how these fields connect to the anchor event.
-
-                6. Additional Questions:
-                   - Who gains money or power from this?
-                   - What previous patterns does this fit into?
-                   - What is NOT being reported?
-
-                USE THIS FRAMEWORK FOR YOUR ANALYSIS, BUT DO NOT STRUCTURE YOUR RESPONSE AROUND IT.
-
-                Instead, write a CASUAL, CONVERSATIONAL summary that:
-                - Uses everyday language a non-expert would understand
-                - Avoids jargon, technical terms, and complex sentences
-                - Explains concepts simply as if talking to a friend
-                - Never mentions the framework sections explicitly (don't say "Present Event" or "Backward Analysis")
-                - Flows naturally between ideas without formal section headers
-                - Includes the key insights from your analysis in an approachable way
-                - Mentions major causes and effects with approximate likelihoods in plain language
-                - Points out who benefits and what patterns this fits
-
-                Use web search to find the most accurate and up-to-date information about this topic.
-                Create a conversational summary that's easy to read and understand (400-500 words).
+                text: `${customPrompt}
                 
                 Return a JSON object with the following fields:
                 - summary: A conversational summary based on your framework analysis (400-500 words)
@@ -280,6 +296,9 @@ async function analyzeWithGemini(title: string, content: string, apiKey: string)
 // Function to analyze content with Perplexity
 async function analyzeWithPerplexity(title: string, content: string, apiKey: string): Promise<LLMResponse> {
   try {
+    // Get the custom prompt if available, otherwise use the default
+    const customPrompt = currentCustomPrompt;
+
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -291,7 +310,7 @@ async function analyzeWithPerplexity(title: string, content: string, apiKey: str
         messages: [
           {
             role: 'system',
-            content: `You are a news analysis assistant with web search capabilities.
+            content: customPrompt || `You are a news analysis assistant with web search capabilities.
             Analyze the following news article using this comprehensive framework:
 
             1. Present Event (Anchor)
@@ -499,6 +518,9 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
     // Record this request for rate limiting
     recordApiRequest();
     
+    // Get the custom prompt if available
+    const customPrompt = currentCustomPrompt;
+    
     // Updated to use structured framework for news analysis but casual output
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
@@ -510,7 +532,7 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
           {
             parts: [
               {
-                text: `You are a news summary assistant with web search capabilities. 
+                text: `${customPrompt || `You are a news summary assistant with web search capabilities. 
                 Analyze the following news article using this comprehensive framework:
 
                 1. Present Event (Anchor)
@@ -545,7 +567,7 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
                 - Flows naturally between ideas without formal section headers
                 - Includes the key insights from your analysis in an approachable way
                 - Mentions major causes and effects with approximate likelihoods in plain language
-                - Points out who benefits and what patterns this fits
+                - Points out who benefits and what patterns this fits`}
                 
                 Use web search to gather the most accurate and current information about this topic.
                 Keep it under 500 words and focus on the most important information in a conversational style.
@@ -608,6 +630,9 @@ async function generateScriptWithGemini(title: string, content: string, apiKey: 
 // Function to generate script with Perplexity
 async function generateScriptWithPerplexity(title: string, content: string, apiKey: string): Promise<string> {
   try {
+    // Get the custom prompt if available
+    const customPrompt = currentCustomPrompt;
+    
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -619,7 +644,7 @@ async function generateScriptWithPerplexity(title: string, content: string, apiK
         messages: [
           {
             role: 'system',
-            content: `You are a news summary assistant with web search capabilities. 
+            content: customPrompt || `You are a news summary assistant with web search capabilities. 
                 Analyze the following news article using this comprehensive framework:
 
                 1. Present Event (Anchor)
