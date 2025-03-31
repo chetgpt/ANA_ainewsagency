@@ -14,6 +14,7 @@ const Index = () => {
   const { 
     customPrompt, 
     showPromptModal, 
+    promptSubmitted,
     handlePromptSubmit, 
     resetPrompt,
     DEFAULT_PROMPT
@@ -24,10 +25,14 @@ const Index = () => {
     setSelectedCategory("summarized");
   }, []);
 
-  // Apply custom prompt to LLM service when it changes
+  // Apply custom prompt to LLM service when it changes and has been submitted
   useEffect(() => {
-    setCustomPrompt(customPrompt);
-  }, [customPrompt]);
+    if (promptSubmitted) {
+      setCustomPrompt(customPrompt);
+      // Trigger refresh when prompt is submitted to start fetching news
+      setRefreshTrigger(prev => prev + 1);
+    }
+  }, [customPrompt, promptSubmitted]);
 
   const handleClearCache = () => {
     // Increment refresh trigger to force re-fetch
@@ -36,10 +41,6 @@ const Index = () => {
 
   const handlePromptUpdate = (prompt?: string) => {
     handlePromptSubmit(prompt);
-    if (prompt) {
-      // Force refresh of news to apply the new prompt
-      setRefreshTrigger(prev => prev + 1);
-    }
   };
 
   return (
@@ -49,10 +50,18 @@ const Index = () => {
         onResetPrompt={resetPrompt}
       />
       <main className="container mx-auto px-4 py-4 flex-grow">
-        <CategorizedNewsList 
-          selectedCategory={selectedCategory}
-          refreshTrigger={refreshTrigger}
-        />
+        {promptSubmitted ? (
+          <CategorizedNewsList 
+            selectedCategory={selectedCategory}
+            refreshTrigger={refreshTrigger}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-64">
+            <p className="text-lg text-gray-500">
+              Please set your news style preferences to start loading news
+            </p>
+          </div>
+        )}
       </main>
       <footer className="bg-gray-100 border-t border-gray-200 py-4">
         <div className="container mx-auto px-4 text-center text-sm text-gray-600">

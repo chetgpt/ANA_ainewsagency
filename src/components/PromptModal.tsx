@@ -22,7 +22,8 @@ const PromptModal = ({ open, onClose, defaultPrompt }: PromptModalProps) => {
   };
 
   const handleSkip = () => {
-    onClose();
+    // Pass default prompt when skipping
+    onClose(defaultPrompt);
   };
 
   return (
@@ -32,7 +33,7 @@ const PromptModal = ({ open, onClose, defaultPrompt }: PromptModalProps) => {
           <DialogTitle>Customize Your News Experience</DialogTitle>
           <DialogDescription>
             Enter a prompt to customize how AI summarizes and presents news articles.
-            The app will continue loading news in the background.
+            No news will be loaded until you submit your preferences.
           </DialogDescription>
         </DialogHeader>
 
@@ -50,7 +51,7 @@ const PromptModal = ({ open, onClose, defaultPrompt }: PromptModalProps) => {
 
         <DialogFooter className="mt-4">
           <Button variant="outline" onClick={handleSkip}>
-            Skip & Use Default
+            Use Default Style
           </Button>
           <Button onClick={handleSubmit}>
             Apply Custom Style

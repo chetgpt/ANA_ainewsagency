@@ -40,22 +40,30 @@ Instead, write a CASUAL, CONVERSATIONAL summary that:
 
 export function useCustomPrompt() {
   const [customPrompt, setCustomPrompt] = useState<string | null>(null);
-  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [showPromptModal, setShowPromptModal] = useState(true); // Always show on initial load
+  const [promptSubmitted, setPromptSubmitted] = useState(false);
 
   useEffect(() => {
     // Check if we have a stored prompt
     const storedPrompt = localStorage.getItem("news-custom-prompt");
     if (storedPrompt) {
       setCustomPrompt(storedPrompt);
+      setPromptSubmitted(true); // Consider stored prompt as submitted
     } else {
-      // Only show the modal if no stored prompt exists
+      // Always show modal if no stored prompt
       setShowPromptModal(true);
+      setPromptSubmitted(false);
     }
   }, []);
 
   const handlePromptSubmit = (prompt?: string) => {
     if (prompt) {
       setCustomPrompt(prompt);
+      setPromptSubmitted(true);
+    } else {
+      // Use default prompt if user skips
+      setCustomPrompt(DEFAULT_PROMPT);
+      setPromptSubmitted(true);
     }
     setShowPromptModal(false);
   };
@@ -63,11 +71,14 @@ export function useCustomPrompt() {
   const resetPrompt = () => {
     localStorage.removeItem("news-custom-prompt");
     setCustomPrompt(null);
+    setPromptSubmitted(false);
+    setShowPromptModal(true);
   };
 
   return {
     customPrompt: customPrompt || DEFAULT_PROMPT,
     showPromptModal,
+    promptSubmitted,
     handlePromptSubmit,
     resetPrompt,
     DEFAULT_PROMPT
