@@ -17,7 +17,8 @@ const Index = () => {
     promptSubmitted,
     handlePromptSubmit, 
     resetPrompt,
-    DEFAULT_PROMPT
+    DEFAULT_PROMPT,
+    displayEmptyField
   } = useCustomPrompt();
 
   // Set summarized category on component mount
@@ -72,7 +73,7 @@ const Index = () => {
       <PromptModal
         open={showPromptModal}
         onClose={handlePromptUpdate}
-        defaultPrompt={DEFAULT_PROMPT}
+        defaultPrompt={displayEmptyField ? "" : DEFAULT_PROMPT}
       />
     </div>
   );

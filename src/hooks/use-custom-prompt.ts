@@ -81,6 +81,7 @@ export function useCustomPrompt() {
     promptSubmitted,
     handlePromptSubmit,
     resetPrompt,
-    DEFAULT_PROMPT
+    DEFAULT_PROMPT,
+    displayEmptyField: true // Add this new property to indicate we want an empty field initially
   };
 }
