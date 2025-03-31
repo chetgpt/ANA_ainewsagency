@@ -12,6 +12,7 @@ import { NEWS_SOURCES } from "./NewsSourceSelector";
 interface CategorizedNewsListProps {
   selectedCategory: string;
   refreshTrigger?: number;
+  showToastOnInit?: boolean; // New prop to control initial toast display
 }
 
 // Define the script type outside the component to improve readability
@@ -35,7 +36,11 @@ interface NewsScript {
 const MAX_NEWS_ITEMS_PER_SOURCE = 3; // Get 3 items from each source
 const MAX_TOTAL_NEWS_ITEMS = 20; // Max total items to process
 
-const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: CategorizedNewsListProps) => {
+const CategorizedNewsList = ({ 
+  selectedCategory, 
+  refreshTrigger = 0, 
+  showToastOnInit = true // Default to showing toast
+}: CategorizedNewsListProps) => {
   const [loading, setLoading] = useState(true);
   const [apiStatus, setApiStatus] = useState<{
     geminiAvailable: boolean;
@@ -44,6 +49,7 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
   // Now we store an array of scripts instead of a single one
   const [scripts, setScripts] = useState<NewsScript[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
+  const [toastShown, setToastShown] = useState(false); // Track if toast has been shown
   const { toast } = useToast();
 
   // Calculate the total number of pages - show 2 news items per page
@@ -59,15 +65,22 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
 
   useEffect(() => {
     fetchAllNewsSources();
-  }, [toast, refreshTrigger]);
+  }, [refreshTrigger]);
 
   // Fetch news from all sources
   const fetchAllNewsSources = async () => {
     setLoading(true);
-    toast({
-      title: "Fetching News",
-      description: "Getting the latest news from multiple sources...",
-    });
+    
+    // Only show toast if allowed and not already shown or on subsequent refreshes
+    if ((showToastOnInit || toastShown) && refreshTrigger > 0) {
+      toast({
+        title: "Fetching News",
+        description: "Getting the latest news from multiple sources...",
+      });
+    }
+    
+    // Mark toast as shown for subsequent calls
+    setToastShown(true);
     
     try {
       // Array to store all news items from different sources
@@ -181,7 +194,6 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: Categoriz
     }
   };
 
-  // Helper function to fetch news from a single source
   const fetchNewsFromSource = async (feedUrl: string, sourceName: string) => {
     try {
       // Try to get from cache first

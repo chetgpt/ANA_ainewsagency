@@ -42,6 +42,7 @@ const Index = () => {
 
   const handlePromptUpdate = (prompt?: string) => {
     handlePromptSubmit(prompt);
+    // No need to manually trigger refresh here as it will be handled by the useEffect above
   };
 
   return (
@@ -55,6 +56,7 @@ const Index = () => {
           <CategorizedNewsList 
             selectedCategory={selectedCategory}
             refreshTrigger={refreshTrigger}
+            showToastOnInit={false} // Don't show toast on initial load
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-64">
