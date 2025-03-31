@@ -12,7 +12,6 @@ import { NEWS_SOURCES } from "./NewsSourceSelector";
 interface CategorizedNewsListProps {
   selectedCategory: string;
   refreshTrigger?: number;
-  onLoadComplete?: () => void;
 }
 
 // Define the script type outside the component to improve readability
@@ -36,7 +35,7 @@ interface NewsScript {
 const MAX_NEWS_ITEMS_PER_SOURCE = 3; // Get 3 items from each source
 const MAX_TOTAL_NEWS_ITEMS = 20; // Max total items to process
 
-const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0, onLoadComplete }: CategorizedNewsListProps) => {
+const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0 }: CategorizedNewsListProps) => {
   const [loading, setLoading] = useState(true);
   const [apiStatus, setApiStatus] = useState<{
     geminiAvailable: boolean;
@@ -179,10 +178,6 @@ const CategorizedNewsList = ({ selectedCategory, refreshTrigger = 0, onLoadCompl
       });
     } finally {
       setLoading(false);
-      // Call the onLoadComplete callback after news loading is finished
-      if (onLoadComplete) {
-        onLoadComplete();
-      }
     }
   };
 
